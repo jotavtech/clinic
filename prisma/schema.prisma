@@ -1,0 +1,77 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String // Em produção, use hash e salt!
+  createdAt DateTime @default(now())
+  // Adicione outros campos de User conforme @shared/schema
+}
+
+model ContactForm {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String
+  phone     String
+  message   String?
+  createdAt DateTime @default(now())
+  // Adicione outros campos de ContactForm conforme @shared/schema
+}
+
+model Appointment {
+  id            Int      @id @default(autoincrement())
+  clientName    String
+  clientPhone   String
+  clientEmail   String?
+  service       String   // Exemplo, ajuste conforme @shared/schema
+  massagistaId  Int?     // Exemplo, se houver relação com Massagista
+  // massagista    Massagista? @relation(fields: [massagistaId], references: [id]) // Exemplo de relação
+  date          String   // Considere usar DateTime se possível para queries mais ricas
+  time          String   // Considere usar DateTime
+  duration      Int      // Adicionado para corresponder ao schema compartilhado
+  status        String   @default("agendado") // ex: agendado, confirmado, cancelado, concluido
+  notes         String?
+  referralCode  String?  // Código de indicação DO cliente
+  referredBy    String?  // Código de indicação DE QUEM indicou este cliente
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Adicione outros campos e relações conforme @shared/schema
+}
+
+model Massagista {
+  id          Int      @id @default(autoincrement())
+  name        String
+  specialty   String?  // Exemplo
+  videoUrl    String?
+  suiteMaster Boolean? @default(false)
+  ativa       Boolean? @default(true)
+  createdAt   DateTime @default(now())
+  // appointments Appointment[] // Exemplo de relação inversa
+
+  // Adicione outros campos e relações conforme @shared/schema
+}
+
+model Referral {
+  id              Int      @id @default(autoincrement())
+  referralCode    String   @unique // O código de indicação do cliente
+  clientName      String
+  clientPhone     String   @unique // Telefone do cliente que possui o código
+  totalReferred   Int      @default(0) // Quantas pessoas ele indicou
+  discountsEarned Int      @default(0) // Quantos descontos ele ganhou por indicar
+  discountsUsed   Int      @default(0) // Quantos descontos ele já usou
+  createdAt       DateTime @default(now())
+
+  // Adicione outros campos conforme @shared/schema
+}
+
+// IMPORTANTE: Revise e ajuste todos os modelos, campos e relações
+// para corresponder exatamente às definições em @shared/schema.
+// Adicione quaisquer outras modelos que faltam (ex: Service, etc.). 

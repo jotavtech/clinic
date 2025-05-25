@@ -1,0 +1,125 @@
+/* FontFamily imports */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Roboto:wght@300;400;500&family=Montserrat:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 20 14.3% 4.1%;
+  --muted: 60 4.8% 95.9%;
+  --muted-foreground: 25 5.3% 44.7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14.3% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14.3% 4.1%;
+  --border: 20 5.9% 90%;
+  --input: 20 5.9% 90%;
+  --primary: 0 0% 7%;  /* #121212 - preto */
+  --primary-foreground: 0 0% 100%; /* branco */
+  --secondary: 0 76% 50%; /* #D32F2F - vermelho */
+  --secondary-foreground: 0 0% 100%; /* branco */
+  --accent: 60 4.8% 95.9%;
+  --accent-foreground: 24 9.8% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 60 9.1% 97.8%;
+  --ring: 0 76% 50%; /* vermelho */
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 0 0% 7%; /* preto */
+  --foreground: 0 0% 98%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 98%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 0 0% 98%; /* branco */
+  --primary-foreground: 0 0% 7%; /* preto */
+  --secondary: 0 76% 50%; /* #D32F2F - vermelho */
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 0 76% 50%; /* vermelho */
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-body antialiased bg-background text-foreground;
+  }
+}
+
+/* Font Classes */
+.font-display {
+  font-family: 'Playfair Display', serif;
+}
+
+.font-body {
+  font-family: 'Roboto', sans-serif;
+}
+
+.font-accent {
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Custom Animations */
+.service-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.service-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.testimonial-container {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.testimonial-slide {
+  scroll-snap-align: start;
+}
+
+/* Custom calendar styling - Admin page */
+.rdp {
+  --rdp-cell-size: 40px !important;
+  --rdp-accent-color: hsl(var(--secondary));
+  --rdp-background-color: hsl(var(--secondary) / 0.2);
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.rdp-months {
+  justify-content: center;
+}
+
+.rdp-day_selected, 
+.rdp-day_selected:focus-visible, 
+.rdp-day_selected:hover {
+  background-color: hsl(var(--secondary)) !important;
+  color: white !important;
+  font-weight: bold;
+}
+
+.rdp-day_today {
+  font-weight: bold;
+  color: hsl(var(--secondary)) !important;
+  border: 1px solid hsl(var(--secondary)) !important;
+}
+
+.rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: hsl(var(--secondary) / 0.2) !important;
+}
