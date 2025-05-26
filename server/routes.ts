@@ -312,6 +312,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  apiRouter.put("/appointments/:id/confirm", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({
+          success: false,
+          message: "ID inválido"
+        });
+      }
+
+      // Buscar o agendamento
+      const appointment = await storage.getAppointment(id);
+      if (!appointment) {
+        return res.status(404).json({
+          success: false,
+          message: "Agendamento não encontrado"
+        });
+      }
+
+      // Gerar código de indicação personalizado com o nome do cliente
+      const referralCode = await storage.generateReferralCode(appointment.clientName);
+
+      // Criar registro de referral
+      const referralData = {
+        referralCode,
+        clientName: appointment.clientName,
+        clientPhone: appointment.clientPhone,
+      };
+
+      const referral = await storage.createReferral(referralData);
+
+      // Atualizar o agendamento com o código de referral
+      const updatedAppointment = await storage.updateAppointment(id, {
+        status: "confirmado",
+        referralCode: referralCode
+      });
+
+      if (!updatedAppointment) {
+        return res.status(500).json({
+          success: false,
+          message: "Erro ao atualizar agendamento"
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Agendamento confirmado com sucesso",
+        appointment: updatedAppointment,
+        referral
+      });
+    } catch (error) {
+      console.error("Erro ao confirmar agendamento:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao confirmar agendamento"
+      });
+    }
+  });
+  
   // Rotas de Massagistas
   
   // Obter todas as massagistas

@@ -1,18 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique
-  password  String // Em produção, use hash e salt!
+  password  String
   createdAt DateTime @default(now())
-  // Adicione outros campos de User conforme @shared/schema
 }
 
 model ContactForm {
@@ -22,56 +21,46 @@ model ContactForm {
   phone     String
   message   String?
   createdAt DateTime @default(now())
-  // Adicione outros campos de ContactForm conforme @shared/schema
 }
 
 model Appointment {
-  id            Int      @id @default(autoincrement())
-  clientName    String
-  clientPhone   String
-  clientEmail   String?
-  service       String   // Exemplo, ajuste conforme @shared/schema
-  massagistaId  Int?     // Exemplo, se houver relação com Massagista
-  // massagista    Massagista? @relation(fields: [massagistaId], references: [id]) // Exemplo de relação
-  date          String   // Considere usar DateTime se possível para queries mais ricas
-  time          String   // Considere usar DateTime
-  duration      Int      // Adicionado para corresponder ao schema compartilhado
-  status        String   @default("agendado") // ex: agendado, confirmado, cancelado, concluido
-  notes         String?
-  referralCode  String?  // Código de indicação DO cliente
-  referredBy    String?  // Código de indicação DE QUEM indicou este cliente
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Adicione outros campos e relações conforme @shared/schema
+  id           Int      @id @default(autoincrement())
+  clientName   String
+  clientPhone  String
+  clientEmail  String?
+  service      String
+  massagistaId Int?
+  date         String
+  time         String
+  duration     Int
+  status       String   @default("agendado")
+  notes        String?
+  referralCode String?
+  referredBy   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Massagista {
   id          Int      @id @default(autoincrement())
-  name        String
-  specialty   String?  // Exemplo
+  nome        String
+  descricao   String
+  fotoUrl     String   @map("foto_url")
   videoUrl    String?
-  suiteMaster Boolean? @default(false)
-  ativa       Boolean? @default(true)
-  createdAt   DateTime @default(now())
-  // appointments Appointment[] // Exemplo de relação inversa
+  suiteMaster Boolean  @default(false) @map("suite_master")
+  ativa       Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  // Adicione outros campos e relações conforme @shared/schema
+  @@map("massagistas")
 }
 
 model Referral {
   id              Int      @id @default(autoincrement())
-  referralCode    String   @unique // O código de indicação do cliente
+  referralCode    String   @unique
   clientName      String
-  clientPhone     String   @unique // Telefone do cliente que possui o código
-  totalReferred   Int      @default(0) // Quantas pessoas ele indicou
-  discountsEarned Int      @default(0) // Quantos descontos ele ganhou por indicar
-  discountsUsed   Int      @default(0) // Quantos descontos ele já usou
+  clientPhone     String   @unique
+  totalReferred   Int      @default(0)
+  discountsEarned Int      @default(0)
+  discountsUsed   Int      @default(0)
   createdAt       DateTime @default(now())
-
-  // Adicione outros campos conforme @shared/schema
 }
-
-// IMPORTANTE: Revise e ajuste todos os modelos, campos e relações
-// para corresponder exatamente às definições em @shared/schema.
-// Adicione quaisquer outras modelos que faltam (ex: Service, etc.). 
