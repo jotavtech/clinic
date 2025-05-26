@@ -1,3 +1,4 @@
+import React from 'react';
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   UserIcon,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,6 +177,17 @@ export default function Admin() {
       suiteMaster: false,
       ativa: true,
     });
+
+  // Estado para controlar o diálogo do código de indicação
+  const [referralCodeDialog, setReferralCodeDialog] = useState<{
+    isOpen: boolean;
+    code: string | null;
+    clientName: string | null;
+  }>({
+    isOpen: false,
+    code: null,
+    clientName: null
+  });
 
   // Redirecionar para login se não estiver autenticado
   useEffect(() => {
@@ -503,6 +516,40 @@ export default function Admin() {
     },
   });
 
+  // Mutation para confirmar agendamento
+  const confirmMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("PUT", `/api/appointments/${id}/confirm`);
+      return response;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      // Abrimos o diálogo com o código
+      setReferralCodeDialog({
+        isOpen: true,
+        code: data.referral.referralCode,
+        clientName: data.appointment.clientName
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao confirmar o agendamento",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Função para copiar o código para a área de transferência
+  const copyToClipboard = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      toast({
+        title: "Código copiado!",
+        description: "O código de indicação foi copiado para a área de transferência.",
+      });
+    });
+  };
+
   // Submit do formulário de agendamento
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -531,16 +578,23 @@ export default function Admin() {
 
   // Função para lidar com o status
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "agendado":
-        return <Badge className="bg-blue-500">Agendado</Badge>;
-      case "concluído":
-        return <Badge className="bg-green-500">Concluído</Badge>;
+        return <Badge variant="outline">Agendado</Badge>;
+      case "confirmado":
+        return <Badge variant="secondary" className="bg-green-500 hover:bg-green-600">Confirmado</Badge>;
       case "cancelado":
-        return <Badge className="bg-red-500">Cancelado</Badge>;
+        return <Badge variant="destructive">Cancelado</Badge>;
+      case "concluido":
+        return <Badge variant="default">Concluído</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge variant="secondary">{status}</Badge>;
     }
+  };
+
+  // Função para confirmar agendamento
+  const handleConfirmAppointment = (id: number) => {
+    confirmMutation.mutate(id);
   };
 
   // Loading state
@@ -574,7 +628,7 @@ export default function Admin() {
         </div>
       </header>
 
-      <main className="container mx-auto py-8 px-4">
+      <main className="container mx-auto py-6">
         {/* Abas para navegação */}
         <div className="mb-6 border-b border-gray-200">
           <div className="flex space-x-4 flex-wrap">
@@ -698,11 +752,13 @@ export default function Admin() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>Data</TableHead>
                           <TableHead>Horário</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Serviço</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Ações</TableHead>
+                          <TableHead>Código de Indicação</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -710,13 +766,25 @@ export default function Admin() {
                           .sort((a, b) => a.time.localeCompare(b.time))
                           .map((appointment) => (
                             <TableRow key={appointment.id}>
-                              <TableCell className="font-medium">
-                                {appointment.time}
-                              </TableCell>
                               <TableCell>
-                                <div>{appointment.clientName}</div>
-                                <div className="text-sm text-gray-500">
-                                  {appointment.clientPhone}
+                                {format(
+                                  parse(
+                                    appointment.date,
+                                    "yyyy-MM-dd",
+                                    new Date(),
+                                  ),
+                                  "dd/MM/yyyy",
+                                )}
+                              </TableCell>
+                              <TableCell>{appointment.time}</TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">
+                                    {appointment.clientName}
+                                  </p>
+                                  <p className="text-sm text-gray-500">
+                                    {appointment.clientPhone}
+                                  </p>
                                 </div>
                               </TableCell>
                               <TableCell>{appointment.service}</TableCell>
@@ -724,49 +792,55 @@ export default function Admin() {
                                 {getStatusBadge(appointment.status)}
                               </TableCell>
                               <TableCell>
-                                <div className="flex space-x-2">
+                                {appointment.referralCode ? (
+                                  <Badge variant="secondary" className="font-mono">
+                                    {appointment.referralCode}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  {appointment.status === "agendado" && (
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => handleConfirmAppointment(appointment.id)}
+                                      title="Confirmar Agendamento"
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      handleOpenEditModal(appointment)
-                                    }
+                                    size="icon"
+                                    onClick={() => handleOpenEditModal(appointment)}
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
-
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="text-red-500 border-red-200"
-                                      >
+                                      <Button variant="outline" size="icon">
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                       <AlertDialogHeader>
                                         <AlertDialogTitle>
-                                          Excluir Agendamento
+                                          Confirmar exclusão
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                          Tem certeza que deseja excluir este
-                                          agendamento? Esta ação não pode ser
-                                          desfeita.
+                                          Tem certeza que deseja excluir este agendamento?
+                                          Esta ação não pode ser desfeita.
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancelar
-                                        </AlertDialogCancel>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                         <AlertDialogAction
                                           onClick={() =>
-                                            deleteMutation.mutate(
-                                              appointment.id,
-                                            )
+                                            deleteMutation.mutate(appointment.id)
                                           }
-                                          className="bg-red-500 text-white hover:bg-red-600"
                                         >
                                           Excluir
                                         </AlertDialogAction>
@@ -1047,6 +1121,10 @@ export default function Admin() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     <span className="ml-2">Carregando estatísticas...</span>
                   </div>
+                ) : isErrorMonthlyStats ? (
+                  <div className="text-center text-red-500 p-4">
+                    Erro ao carregar estatísticas.
+                  </div>
                 ) : monthlyStats.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
                     <p>Nenhuma estatística disponível.</p>
@@ -1066,17 +1144,16 @@ export default function Admin() {
                       </TableHeader>
                       <TableBody>
                         {monthlyStats.map((stat) => (
-                          <>
+                          <React.Fragment key={stat.month}>
                             <TableRow
-                              key={stat.month}
                               className="cursor-pointer hover:bg-gray-100"
                               onClick={() => toggleMonthExpansion(stat.month)}
                             >
                               <TableCell className="font-medium">
                                 {format(
-                                  new Date(stat.month + "-01"),
+                                  new Date(stat.month + "-01T00:00:00"),
                                   "MMMM 'de' yyyy",
-                                  { locale: ptBR },
+                                  { locale: ptBR }
                                 )}
                                 {expandedMonths.includes(stat.month) ? (
                                   <ChevronDown className="ml-2 h-4 w-4 inline-block" />
@@ -1096,33 +1173,31 @@ export default function Admin() {
                                     Lista de Clientes:
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    {stat.clientVisits?.map(
-                                      (clientVisit, idx) => (
-                                        <div
-                                          key={idx}
-                                          className="flex items-center justify-between p-2 rounded-md bg-white border border-gray-200"
-                                        >
-                                          <div className="flex items-center">
-                                            <UserIcon className="h-4 w-4 mr-2 text-gray-500" />
-                                            <span>{clientVisit.name}</span>
-                                          </div>
-                                          <Badge
-                                            variant="outline"
-                                            className="ml-2 bg-red-50"
-                                          >
-                                            {clientVisit.count}{" "}
-                                            {clientVisit.count === 1
-                                              ? "visita"
-                                              : "visitas"}
-                                          </Badge>
+                                    {stat.clientVisits.map((clientVisit, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-center justify-between p-2 rounded-md bg-white border border-gray-200"
+                                      >
+                                        <div className="flex items-center">
+                                          <UserIcon className="h-4 w-4 mr-2 text-gray-500" />
+                                          <span>{clientVisit.name}</span>
                                         </div>
-                                      ),
-                                    )}
+                                        <Badge
+                                          variant="outline"
+                                          className="ml-2 bg-red-50"
+                                        >
+                                          {clientVisit.count}{" "}
+                                          {clientVisit.count === 1
+                                            ? "visita"
+                                            : "visitas"}
+                                        </Badge>
+                                      </div>
+                                    ))}
                                   </div>
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </React.Fragment>
                         ))}
                       </TableBody>
                     </Table>
@@ -1132,7 +1207,7 @@ export default function Admin() {
             </Card>
           </div>
         )}
-      </main>
+
 
       {/* Modal de Criação/Edição de Agendamento */}
       <Dialog
@@ -1436,6 +1511,62 @@ export default function Admin() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+
+      {/* Dialog do Código de Indicação */}
+      <Dialog 
+        open={referralCodeDialog.isOpen} 
+        onOpenChange={(open) => setReferralCodeDialog(prev => ({ ...prev, isOpen: open }))}
+      >
+        <DialogContent className="sm:max-w-md bg-white rounded-lg shadow-xl">
+          <DialogHeader className="space-y-4">
+            <DialogTitle className="text-2xl font-bold text-center text-primary">
+              Agendamento Confirmado! 🎉
+            </DialogTitle>
+            <DialogDescription className="text-center text-lg">
+              <p className="mb-2">
+                O agendamento de <span className="font-semibold">{referralCodeDialog.clientName}</span> foi confirmado com sucesso!
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Compartilhe o código abaixo para que o cliente possa indicar amigos e ganhar descontos.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center space-y-6 py-6">
+            <div className="bg-primary/5 p-8 rounded-xl w-full text-center border-2 border-primary/20">
+              <p className="text-sm text-muted-foreground mb-3">Código de Indicação</p>
+              <p className="text-4xl font-mono font-bold tracking-wider text-primary bg-white py-3 rounded-lg shadow-inner">
+                {referralCodeDialog.code}
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => referralCodeDialog.code && copyToClipboard(referralCodeDialog.code)}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copiar Código
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setReferralCodeDialog(prev => ({ ...prev, isOpen: false }))}
+              >
+                Fechar
+              </Button>
+            </div>
+
+            <p className="text-xs text-center text-muted-foreground mt-4">
+              O cliente ganha um desconto a cada 3 indicações que realizarem agendamentos.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </main>
+  </div>
+);
 }

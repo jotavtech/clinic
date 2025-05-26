@@ -9,6 +9,7 @@ import type {
 
 // Importa tipos do Prisma - o Prisma Client já foi gerado
 import type { User, Appointment, ContactForm, Massagista, Referral } from '@prisma/client';
+import { ReferralCodeGenerator } from './utils/referralCodeGenerator';
 
 // Interface for storage operations - os tipos de retorno devem corresponder ao @shared/schema
 export interface IStorage {
@@ -44,17 +45,75 @@ export interface IStorage {
   }): Promise<SharedReferral | undefined>;
   
   getClientHistory(): Promise<SharedAppointment[]>;
-  getMonthlyStats(): Promise<{ month: string; count: number; clients: string[] }[]>;
-  generateReferralCode(): Promise<string>;
+  getMonthlyStats(): Promise<{ month: string; count: number; clients: string[]; clientVisits: { name: string; count: number }[] }[]>;
+  generateReferralCode(clientName?: string): Promise<string>;
 }
 
 export class PrismaStorage implements IStorage {
   async createAppointment(appointmentData: SharedInsertAppointment): Promise<SharedAppointment> {
-    const newAppointmentPrisma = await db.appointment.create({
-      data: appointmentData as any, // Cast para 'any' se SharedInsertAppointment não for compatível com Prisma.AppointmentCreateInput
-                                  // Idealmente, alinhe os tipos ou use um mapeador.
-    });
-    return newAppointmentPrisma as unknown as SharedAppointment; // Requer alinhamento de tipo
+    try {
+      // Create the appointment
+      const newAppointmentPrisma = await db.appointment.create({
+        data: {
+          ...appointmentData,
+          clientEmail: appointmentData.clientEmail || null,
+          notes: appointmentData.notes || null,
+          status: appointmentData.status || "agendado",
+          referralCode: appointmentData.referralCode || null,
+          referredBy: appointmentData.referredBy || null,
+          createdAt: new Date().toISOString()
+        }
+      });
+
+      // If the client was referred by someone, update their referral stats
+      if (newAppointmentPrisma.referredBy) {
+        const referral = await this.getReferralByCode(newAppointmentPrisma.referredBy);
+        if (referral) {
+          await this.updateReferralStats(referral.id, {
+            totalReferred: referral.totalReferred + 1,
+            discountsEarned: referral.discountsEarned + 1
+          });
+        }
+      }
+
+      // If the client doesn't have a referral code yet, generate one
+      if (!newAppointmentPrisma.referralCode) {
+        const existingReferral = await this.getReferralByPhone(newAppointmentPrisma.clientPhone);
+
+        if (!existingReferral) {
+          // Generate a new referral code
+          const referralCode = await this.generateReferralCode(newAppointmentPrisma.clientName);
+
+          // Create a new referral record
+          await this.createReferral({
+            referralCode,
+            clientName: newAppointmentPrisma.clientName,
+            clientPhone: newAppointmentPrisma.clientPhone
+          });
+
+          // Update the appointment with the generated referral code
+          const updatedAppointment = await db.appointment.update({
+            where: { id: newAppointmentPrisma.id },
+            data: { referralCode }
+          });
+
+          return updatedAppointment as unknown as SharedAppointment;
+        } else {
+          // Use the existing referral code
+          const updatedAppointment = await db.appointment.update({
+            where: { id: newAppointmentPrisma.id },
+            data: { referralCode: existingReferral.referralCode }
+          });
+
+          return updatedAppointment as unknown as SharedAppointment;
+        }
+      }
+
+      return newAppointmentPrisma as unknown as SharedAppointment;
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      throw error;
+    }
   }
 
   async getAppointments(): Promise<SharedAppointment[]> {
@@ -127,9 +186,23 @@ export class PrismaStorage implements IStorage {
       return formPrisma as unknown as SharedContactForm;
   }
 
-  async createMassagista(massagistaData: SharedInsertMassagista): Promise<SharedMassagista> {
-    const newMassagistaPrisma = await db.massagista.create({ data: massagistaData as any });
-    return newMassagistaPrisma as unknown as SharedMassagista;
+  async createMassagista(massagistaData: SharedInsertMassagista & { createdAt?: string }): Promise<SharedMassagista> {
+    try {
+      const newMassagistaPrisma = await db.massagista.create({
+        data: {
+          nome: massagistaData.nome,
+          descricao: massagistaData.descricao,
+          fotoUrl: massagistaData.fotoUrl,
+          videoUrl: massagistaData.videoUrl || null,
+          suiteMaster: massagistaData.suiteMaster || false,
+          ativa: massagistaData.ativa !== undefined ? massagistaData.ativa : true
+        }
+      });
+      return newMassagistaPrisma as unknown as SharedMassagista;
+    } catch (error) {
+      console.error("Error creating massagista:", error);
+      throw error;
+    }
   }
   
   async getMassagistas(): Promise<SharedMassagista[]> {
@@ -166,7 +239,15 @@ export class PrismaStorage implements IStorage {
 
   async createReferral(referralData: SharedInsertReferral): Promise<SharedReferral> {
     try {
-        const newReferralPrisma = await db.referral.create({ data: referralData as any });
+        const newReferralPrisma = await db.referral.create({ 
+          data: {
+            ...referralData,
+            createdAt: new Date().toISOString(),
+            totalReferred: 0,
+            discountsEarned: 0,
+            discountsUsed: 0
+          }
+        });
         return newReferralPrisma as unknown as SharedReferral;
     } catch(error) {
         console.error("Error creating referral:", error);
@@ -213,27 +294,122 @@ export class PrismaStorage implements IStorage {
   }
 
   async getClientHistory(): Promise<SharedAppointment[]> {
-    console.warn("getClientHistory not fully implemented for PrismaStorage");
-    const appointmentsPrisma = await db.appointment.findMany({ orderBy: { createdAt: 'desc' } });
-    return appointmentsPrisma as unknown as SharedAppointment[];
+    try {
+      // Get all appointments ordered by date and time
+      const appointments = await db.appointment.findMany({
+        orderBy: [
+          { date: 'desc' },
+          { time: 'desc' }
+        ]
+      });
+
+      return appointments as unknown as SharedAppointment[];
+    } catch (error) {
+      console.error("Error getting client history:", error);
+      return [];
+    }
   }
 
-  async getMonthlyStats(): Promise<{ month: string; count: number; clients: string[] }[]> {
-    console.warn("getMonthlyStats not fully implemented for PrismaStorage. Needs raw query or complex aggregation.");
-    return [];
+  async getMonthlyStats(): Promise<{ month: string; count: number; clients: string[]; clientVisits: { name: string; count: number }[] }[]> {
+    try {
+      // Get all appointments ordered by date
+      const appointments = await db.appointment.findMany({
+        orderBy: [
+          { date: 'desc' },
+          { time: 'desc' }
+        ]
+      });
+
+      // Group appointments by month
+      const monthlyStats: Record<string, {
+        count: number;
+        clients: Set<string>;
+        clientCounts: Record<string, number>;
+      }> = {};
+
+      // Process each appointment
+      appointments.forEach(appointment => {
+        const date = new Date(appointment.date);
+        const month = date.toISOString().substring(0, 7); // YYYY-MM format
+
+        // Initialize month stats if not exists
+        if (!monthlyStats[month]) {
+          monthlyStats[month] = {
+            count: 0,
+            clients: new Set<string>(),
+            clientCounts: {}
+          };
+        }
+
+        // Update stats
+        monthlyStats[month].count++;
+        monthlyStats[month].clients.add(appointment.clientName);
+
+        // Update client visit count
+        if (!monthlyStats[month].clientCounts[appointment.clientName]) {
+          monthlyStats[month].clientCounts[appointment.clientName] = 0;
+        }
+        monthlyStats[month].clientCounts[appointment.clientName]++;
+      });
+
+      // Get current month in YYYY-MM format
+      const currentMonth = new Date().toISOString().substring(0, 7);
+
+      // Convert to return format, ensuring current month is included
+      const stats = Object.entries(monthlyStats).map(([month, stats]) => ({
+        month,
+        count: stats.count,
+        clients: Array.from(stats.clients),
+        clientVisits: Object.entries(stats.clientCounts)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count) // Sort by visit count, most frequent first
+      }));
+
+      // Add current month if not present
+      if (!stats.find(stat => stat.month === currentMonth)) {
+        stats.unshift({
+          month: currentMonth,
+          count: 0,
+          clients: [],
+          clientVisits: []
+        });
+      }
+
+      // Sort by month, most recent first
+      return stats.sort((a, b) => b.month.localeCompare(a.month));
+    } catch (error) {
+      console.error("Error getting monthly stats:", error);
+      return [];
+    }
   }
 
-  async generateReferralCode(): Promise<string> {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += characters.charAt(Math.floor(Math.random() * characters.length));
+  async generateReferralCode(clientName?: string): Promise<string> {
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+      const code = ReferralCodeGenerator.generate({
+        clientName,
+        usePrefix: true,
+        length: 6
+      });
+
+      // Verifica se o código já existe
+      const existing = await this.getReferralByCode(code);
+      if (!existing) {
+        return code;
+      }
+
+      attempts++;
     }
-    const existing = await this.getReferralByCode(result);
-    if (existing) {
-        return this.generateReferralCode();
-    }
-    return result;
+
+    // Se não conseguiu gerar um código único com prefixo, tenta sem prefixo
+    const fallbackCode = ReferralCodeGenerator.generate({
+      usePrefix: false,
+      length: 8
+    });
+
+    return fallbackCode;
   }
 }
 
