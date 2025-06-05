@@ -6,6 +6,7 @@ import { insertContactFormSchema, insertAppointmentSchema, insertMassagistaSchem
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import session from "express-session";
+import { upload, uploadToCloudinary } from "./services/uploadService";
 
 // Estender a interface Session do express-session
 declare module 'express-session' {
@@ -24,7 +25,7 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<void> {
   // Configurar sessões
   app.use(session({
     secret: 'clinica-executivas-secret',
@@ -101,6 +102,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       isAuthenticated: false,
       message: "Não autenticado" 
     });
+  });
+
+  // Rota para upload de imagem (somente usuários autenticados)
+  apiRouter.post("/upload-image", isAuthenticated, upload.single('image'), async (req: any, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: "Nenhuma imagem foi enviada"
+        });
+      }
+
+      const imageUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+      
+      return res.status(200).json({
+        success: true,
+        message: "Imagem enviada com sucesso",
+        imageUrl
+      });
+    } catch (error) {
+      console.error("Erro ao fazer upload da imagem:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao fazer upload da imagem"
+      });
+    }
   });
   
   // Contact form submission endpoint
@@ -524,22 +551,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Criar um usuário administrador padrão (para fins de demonstração)
-  (async () => {
-    try {
-      const adminExists = await storage.getUserByUsername("admin");
-      if (!adminExists) {
-        await storage.createUser({
-          username: "admin",
-          password: "admin123" // Em produção, usar hash e senhas fortes
-        });
-        console.log("Usuário admin criado com sucesso");
-      }
-    } catch (error) {
-      console.error("Erro ao criar usuário admin:", error);
-    }
-  })();
-
   // Rotas para o sistema de referências
   
   // Obter todas as referências
@@ -617,12 +628,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const referralCode = await storage.generateReferralCode();
       
       // Criar novo registro de referência
-      const timestamp = new Date().toISOString();
       const referral = await storage.createReferral({
         referralCode,
         clientName,
-        clientPhone,
-        createdAt: timestamp
+        clientPhone
       });
       
       return res.status(201).json({
@@ -725,6 +734,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount API routes
   app.use("/api", apiRouter);
   
-  const httpServer = createServer(app);
-  return httpServer;
+  console.log("🚀 Rotas registradas com sucesso!");
 }

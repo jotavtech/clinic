@@ -349,4 +349,25 @@ export class DatabaseStorage implements IStorage {
     
     return code;
   }
+
+  // Método para inicializar o usuário admin padrão
+  async initializeAdminUser(): Promise<void> {
+    try {
+      console.log('Verificando se o usuário admin existe...');
+      const adminExists = await this.getUserByUsername("admin");
+      
+      if (!adminExists) {
+        console.log('Usuário admin não encontrado. Criando...');
+        await this.createUser({
+          username: "admin",
+          password: "admin123" // Em produção, usar hash e senhas fortes
+        });
+        console.log("Usuário admin criado com sucesso - Username: admin, Password: admin123");
+      } else {
+        console.log("Usuário admin já existe");
+      }
+    } catch (error) {
+      console.error("Erro ao inicializar usuário admin:", error);
+    }
+  }
 }

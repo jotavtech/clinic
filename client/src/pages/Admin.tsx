@@ -1,111 +1,42 @@
-import React from 'react';
-import { useEffect, useState } from "react";
+import React, { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { format, parse, addDays, isSameDay } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Loader2,
-  Edit,
-  Trash2,
-  Plus,
-  Check,
-  X,
-  LogOut,
-  ChevronDown,
-  ChevronRight,
-  UserIcon,
-  Copy,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { ImageUpload } from "@/components/ImageUpload";
+import { Loader2, Plus, Edit, Trash2, LogOut, Calendar as CalendarIcon, Clock, User, Phone, MapPin } from "lucide-react";
 
-interface Appointment {
-  id: number;
-  clientName: string;
-  clientEmail?: string;
-  clientPhone: string;
-  service: string;
-  date: string;
-  time: string;
-  duration: number;
-  notes: string | null;
-  status: string;
-  referralCode: string | null;
-  referredBy: string | null;
-  createdAt: string;
-}
+// Função auxiliar para fazer requisições
+async function apiRequest(method: string, url: string, data?: any) {
+  const config: RequestInit = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  };
 
-interface Referral {
-  id: number;
-  clientName: string;
-  clientPhone: string;
-  referralCode: string;
-  totalReferred: number;
-  discountsEarned: number;
-  discountsUsed: number;
-  createdAt: string;
-}
+  if (data && method !== "GET") {
+    config.body = JSON.stringify(data);
+  }
 
-interface AppointmentFormData {
-  clientName: string;
-  clientEmail?: string;
-  clientPhone: string;
-  service: string;
-  date: string;
-  time: string;
-  duration: number;
-  notes: string;
-  status: string;
+  const response = await fetch(url, config);
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Erro na requisição" }));
+    throw new Error(errorData.message || `HTTP Error: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 interface Massagista {
@@ -128,168 +59,203 @@ interface MassagistaFormData {
   ativa: boolean;
 }
 
+interface Appointment {
+  id: number;
+  clientName: string;
+  clientPhone: string;
+  clientEmail: string | null;
+  service: string;
+  massagistaId: number | null;
+  date: string;
+  time: string;
+  duration: number;
+  status: string;
+  notes: string | null;
+  referralCode: string | null;
+  referredBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface MonthlyStats {
+  month: string;
+  count: number;
+  appointments: Appointment[];
+}
+
+interface ClientStats {
+  clientName: string;
+  clientPhone: string;
+  count: number;
+  appointments: Appointment[];
+}
+
 export default function Admin() {
   const { isAuthenticated, isLoading: authLoading, logout } = useAuth();
-  const [_, setLocation] = useLocation();
-  const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-
-  // Estado para abas
-  const [activeTab, setActiveTab] = useState<
-    "agendamentos" | "massagistas" | "referrals" | "estatisticas"
-  >("agendamentos");
-
-  // Estados para agendamentos
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentAppointment, setCurrentAppointment] =
-    useState<Appointment | null>(null);
-
-  // Estados para massagistas
+  const { toast } = useToast();
+  
+  const [activeTab, setActiveTab] = useState("massagistas");
   const [massagistaModalOpen, setMassagistaModalOpen] = useState(false);
   const [isEditingMassagista, setIsEditingMassagista] = useState(false);
-  const [currentMassagista, setCurrentMassagista] = useState<Massagista | null>(
-    null,
-  );
-
-  // Estado para expandir/recolher lista de clientes nas estatísticas
-  const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
-
-  const [formData, setFormData] = useState<AppointmentFormData>({
-    clientName: "",
-    clientEmail: "",
-    clientPhone: "",
-    service: "",
-    date: "",
-    time: "",
-    duration: 60,
-    notes: "",
-    status: "agendado",
+  const [currentMassagista, setCurrentMassagista] = useState<Massagista | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [massagistaFormData, setMassagistaFormData] = useState<MassagistaFormData>({
+    nome: "",
+    descricao: "",
+    fotoUrl: "",
+    videoUrl: "",
+    suiteMaster: false,
+    ativa: true,
   });
 
-  const [massagistaFormData, setMassagistaFormData] =
-    useState<MassagistaFormData>({
-      nome: "",
-      descricao: "",
-      fotoUrl: "",
-      videoUrl: "",
-      suiteMaster: false,
-      ativa: true,
+  // Buscar todas as massagistas
+  const { data: massagistas = [], isLoading: isLoadingMassagistas, refetch: refetchMassagistas } = useQuery({
+    queryKey: ["/api/massagistas"],
+    queryFn: () => apiRequest("GET", "/api/massagistas"),
+    enabled: isAuthenticated,
+    select: (data: any) => data.massagistas as Massagista[],
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
+  });
+
+  // Buscar todos os agendamentos
+  const { data: appointments = [], isLoading: isLoadingAppointments, refetch: refetchAppointments } = useQuery({
+    queryKey: ["/api/appointments"],
+    queryFn: () => apiRequest("GET", "/api/appointments"),
+    enabled: isAuthenticated,
+    select: (data: any) => data.appointments as Appointment[],
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+    staleTime: 5000,
+  });
+
+  // Calcular estatísticas mensais
+  const monthlyStats: MonthlyStats[] = React.useMemo(() => {
+    const grouped = appointments.reduce((acc: Record<string, Appointment[]>, appointment) => {
+      const date = new Date(appointment.createdAt);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'long' });
+      
+      if (!acc[monthName]) {
+        acc[monthName] = [];
+      }
+      acc[monthName].push(appointment);
+      return acc;
+    }, {});
+
+    return Object.entries(grouped)
+      .map(([month, appointments]) => ({
+        month,
+        count: appointments.length,
+        appointments
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [appointments]);
+
+  // Calcular estatísticas de clientes
+  const clientStats: ClientStats[] = React.useMemo(() => {
+    const grouped = appointments.reduce((acc: Record<string, Appointment[]>, appointment) => {
+      const key = `${appointment.clientName}-${appointment.clientPhone}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(appointment);
+      return acc;
+    }, {});
+
+    return Object.entries(grouped)
+      .map(([key, appointments]) => ({
+        clientName: appointments[0].clientName,
+        clientPhone: appointments[0].clientPhone,
+        count: appointments.length,
+        appointments
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [appointments]);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('pt-BR');
+  };
+
+  const formatCalendarDate = (date: Date) => {
+    return date.toISOString().split('T')[0];
+  };
+
+  const isSameDate = (date1: string, date2: Date) => {
+    const d1 = new Date(date1).toISOString().split('T')[0];
+    const d2 = date2.toISOString().split('T')[0];
+    return d1 === d2;
+  };
+
+  // Filtrar agendamentos pela data selecionada
+  const appointmentsForSelectedDate = React.useMemo(() => {
+    return appointments.filter(appointment => 
+      isSameDate(appointment.date, selectedDate)
+    );
+  }, [appointments, selectedDate]);
+
+  // Obter datas que têm agendamentos para destacar no calendário
+  const datesWithAppointments = React.useMemo(() => {
+    const dates = new Set<string>();
+    appointments.forEach(appointment => {
+      dates.add(new Date(appointment.date).toISOString().split('T')[0]);
     });
+    return Array.from(dates).map(dateStr => new Date(dateStr));
+  }, [appointments]);
 
-  // Estado para controlar o diálogo do código de indicação
-  const [referralCodeDialog, setReferralCodeDialog] = useState<{
-    isOpen: boolean;
-    code: string | null;
-    clientName: string | null;
-  }>({
-    isOpen: false,
-    code: null,
-    clientName: null
-  });
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { variant: any; label: string }> = {
+      'agendado': { variant: 'default', label: 'Agendado' },
+      'confirmado': { variant: 'default', label: 'Confirmado' },
+      'realizado': { variant: 'default', label: 'Realizado' },
+      'cancelado': { variant: 'destructive', label: 'Cancelado' },
+    };
+    
+    const statusInfo = statusMap[status] || { variant: 'secondary', label: status };
+    return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
+  };
+
+  const getServiceLabel = (service: string) => {
+    const serviceMap: Record<string, string> = {
+      'suite-padrao': 'Suíte Padrão',
+      'suite-master': 'Suíte Master',
+      'massagem-relaxante': 'Massagem Relaxante',
+      'massagem-tantrica': 'Massagem Tântrica',
+    };
+    return serviceMap[service] || service;
+  };
 
   // Redirecionar para login se não estiver autenticado
-  useEffect(() => {
+  React.useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       setLocation("/login");
     }
   }, [isAuthenticated, authLoading, setLocation]);
 
-  // Buscar todos os agendamentos com atualização automática a cada 30 segundos
-  const {
-    data: appointments = [],
-    isLoading: isLoadingAppointments,
-    isError: isErrorAppointments,
-    refetch: refetchAppointments,
-  } = useQuery({
-    queryKey: ["/api/appointments"],
-    enabled: isAuthenticated,
-    select: (data: any) => data.appointments as Appointment[],
-    refetchInterval: 30000, // Recarregar a cada 30 segundos
-    refetchOnWindowFocus: true, // Recarregar quando a janela ganhar foco
-    staleTime: 10000, // Considerar dados obsoletos após 10 segundos
-  });
-
-  // Buscar todas as massagistas
-  const {
-    data: massagistas = [],
-    isLoading: isLoadingMassagistas,
-    isError: isErrorMassagistas,
-    refetch: refetchMassagistas,
-  } = useQuery({
-    queryKey: ["/api/massagistas"],
-    enabled: isAuthenticated,
-    select: (data: any) => data.massagistas as Massagista[],
-  });
-
-  // Buscar todas as referências
-  const {
-    data: referrals = [],
-    isLoading: isLoadingReferrals,
-    isError: isErrorReferrals,
-    refetch: refetchReferrals,
-  } = useQuery({
-    queryKey: ["/api/referrals"],
-    enabled: isAuthenticated,
-    select: (data: any) => data.referrals as Referral[],
-    refetchInterval: 30000,
-    refetchOnWindowFocus: true,
-  });
-
-  // Buscar estatísticas mensais
-  const {
-    data: monthlyStats = [],
-    isLoading: isLoadingMonthlyStats,
-    isError: isErrorMonthlyStats,
-  } = useQuery({
-    queryKey: ["/api/stats/monthly"],
-    enabled: isAuthenticated && activeTab === "estatisticas",
-    select: (data: any) =>
-      data.monthlyStats as {
-        month: string;
-        count: number;
-        clients: string[];
-        clientVisits: { name: string; count: number }[];
-      }[],
-    refetchInterval: 60000,
-  });
-
-  // Função para expandir/recolher a lista de clientes por mês
-  const toggleMonthExpansion = (month: string) => {
-    setExpandedMonths((prev) =>
-      prev.includes(month) ? prev.filter((m) => m !== month) : [...prev, month],
-    );
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setLocation("/login");
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao fazer logout",
+        variant: "destructive",
+      });
+    }
   };
 
-  // Agendamentos filtrados pela data selecionada
-  const filteredAppointments = appointments.filter((appointment) =>
-    isSameDay(parse(appointment.date, "yyyy-MM-dd", new Date()), selectedDate),
-  );
-
-  // Formatar data para exibição
-  const formatDate = (dateStr: string): string => {
-    const date = parse(dateStr, "yyyy-MM-dd", new Date());
-    return format(date, "dd/MM/yyyy", { locale: ptBR });
-  };
-
-  // Função para lidar com a criação/edição de agendamentos
-  const handleFormChange = (
-    field: keyof AppointmentFormData,
-    value: string | number,
-  ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  // Function to handle massagista form data changes
-  const handleMassagistaFormChange = (
-    field: keyof MassagistaFormData,
-    value: string | boolean,
-  ) => {
+  const handleMassagistaFormChange = (field: keyof MassagistaFormData, value: string | boolean) => {
     setMassagistaFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Abrir modal para criação de massagista
   const handleOpenCreateMassagistaModal = () => {
     setIsEditingMassagista(false);
     setCurrentMassagista(null);
@@ -304,7 +270,6 @@ export default function Admin() {
     setMassagistaModalOpen(true);
   };
 
-  // Abrir modal para edição de massagista
   const handleOpenEditMassagistaModal = (massagista: Massagista) => {
     setIsEditingMassagista(true);
     setCurrentMassagista(massagista);
@@ -319,121 +284,14 @@ export default function Admin() {
     setMassagistaModalOpen(true);
   };
 
-  // Abrir modal para criação
-  const handleOpenCreateModal = () => {
-    setIsEditing(false);
-    setCurrentAppointment(null);
-    setFormData({
-      clientName: "",
-      clientEmail: "",
-      clientPhone: "",
-      service: "",
-      date: format(selectedDate, "yyyy-MM-dd"),
-      time: "09:00",
-      duration: 60,
-      notes: "",
-      status: "agendado",
-    });
-    setAppointmentModalOpen(true);
-  };
-
-  // Abrir modal para edição
-  const handleOpenEditModal = (appointment: Appointment) => {
-    setIsEditing(true);
-    setCurrentAppointment(appointment);
-    setFormData({
-      clientName: appointment.clientName,
-      clientEmail: appointment.clientEmail,
-      clientPhone: appointment.clientPhone,
-      service: appointment.service,
-      date: appointment.date,
-      time: appointment.time,
-      duration: appointment.duration,
-      notes: appointment.notes || "",
-      status: appointment.status,
-    });
-    setAppointmentModalOpen(true);
-  };
-
-  // Criar agendamento
-  const createMutation = useMutation({
-    mutationFn: (data: AppointmentFormData) => {
-      return apiRequest("POST", "/api/appointments", data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      toast({
-        title: "Sucesso",
-        description: "Agendamento criado com sucesso!",
-      });
-      setAppointmentModalOpen(false);
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao criar agendamento",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Atualizar agendamento
-  const updateMutation = useMutation({
-    mutationFn: (data: {
-      id: number;
-      appointment: Partial<AppointmentFormData>;
-    }) => {
-      return apiRequest(
-        "PUT",
-        `/api/appointments/${data.id}`,
-        data.appointment,
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      toast({
-        title: "Sucesso",
-        description: "Agendamento atualizado com sucesso!",
-      });
-      setAppointmentModalOpen(false);
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao atualizar agendamento",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Excluir agendamento
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => {
-      return apiRequest("DELETE", `/api/appointments/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      toast({
-        title: "Sucesso",
-        description: "Agendamento excluído com sucesso!",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao excluir agendamento",
-        variant: "destructive",
-      });
-    },
-  });
-
   // Criar massagista
   const createMassagistaMutation = useMutation({
     mutationFn: (data: MassagistaFormData) => {
       return apiRequest("POST", "/api/massagistas", data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
+      await refetchMassagistas();
       toast({
         title: "Sucesso",
         description: "Massagista adicionada com sucesso!",
@@ -451,14 +309,12 @@ export default function Admin() {
 
   // Atualizar massagista
   const updateMassagistaMutation = useMutation({
-    mutationFn: (data: {
-      id: number;
-      massagista: Partial<MassagistaFormData>;
-    }) => {
+    mutationFn: (data: { id: number; massagista: Partial<MassagistaFormData> }) => {
       return apiRequest("PUT", `/api/massagistas/${data.id}`, data.massagista);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
+      await refetchMassagistas();
       toast({
         title: "Sucesso",
         description: "Massagista atualizada com sucesso!",
@@ -479,8 +335,9 @@ export default function Admin() {
     mutationFn: (id: number) => {
       return apiRequest("DELETE", `/api/massagistas/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
+      await refetchMassagistas();
       toast({
         title: "Sucesso",
         description: "Massagista excluída com sucesso!",
@@ -495,77 +352,39 @@ export default function Admin() {
     },
   });
 
-  // Usar um desconto de referência
-  const useDiscountMutation = useMutation({
+  // Excluir agendamento
+  const deleteAppointmentMutation = useMutation({
     mutationFn: (id: number) => {
-      return apiRequest("PUT", `/api/referrals/use-discount/${id}`, {});
+      return apiRequest("DELETE", `/api/appointments/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/referrals"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
+      await refetchAppointments();
       toast({
         title: "Sucesso",
-        description: "Desconto aplicado com sucesso!",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao aplicar desconto",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Mutation para confirmar agendamento
-  const confirmMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiRequest("PUT", `/api/appointments/${id}/confirm`);
-      return response;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      // Abrimos o diálogo com o código
-      setReferralCodeDialog({
-        isOpen: true,
-        code: data.referral.referralCode,
-        clientName: data.appointment.clientName
+        description: "Agendamento excluído com sucesso!",
       });
     },
     onError: () => {
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao confirmar o agendamento",
+        description: "Ocorreu um erro ao excluir agendamento",
         variant: "destructive",
       });
     },
   });
 
-  // Função para copiar o código para a área de transferência
-  const copyToClipboard = (code: string) => {
-    navigator.clipboard.writeText(code).then(() => {
-      toast({
-        title: "Código copiado!",
-        description: "O código de indicação foi copiado para a área de transferência.",
-      });
-    });
-  };
-
-  // Submit do formulário de agendamento
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isEditing && currentAppointment) {
-      updateMutation.mutate({
-        id: currentAppointment.id,
-        appointment: formData,
-      });
-    } else {
-      createMutation.mutate(formData);
+  const handleDeleteAppointment = (appointment: Appointment) => {
+    if (window.confirm(
+      `Tem certeza que deseja excluir o agendamento de ${appointment.clientName} para ${formatDate(appointment.date)} às ${appointment.time}?`
+    )) {
+      deleteAppointmentMutation.mutate(appointment.id);
     }
   };
 
-  // Submit do formulário de massagista
   const handleMassagistaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (isEditingMassagista && currentMassagista) {
       updateMassagistaMutation.mutate({
         id: currentMassagista.id,
@@ -576,997 +395,624 @@ export default function Admin() {
     }
   };
 
-  // Função para lidar com o status
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "agendado":
-        return <Badge variant="outline">Agendado</Badge>;
-      case "confirmado":
-        return <Badge variant="secondary" className="bg-green-500 hover:bg-green-600">Confirmado</Badge>;
-      case "cancelado":
-        return <Badge variant="destructive">Cancelado</Badge>;
-      case "concluido":
-        return <Badge variant="default">Concluído</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  // Função para confirmar agendamento
-  const handleConfirmAppointment = (id: number) => {
-    confirmMutation.mutate(id);
-  };
-
-  // Loading state
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Carregando...</span>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-primary text-white p-4 shadow-md">
-        <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold">
-            Clínica Executivas - Painel Administrativo
-          </h1>
-          <Button
-            variant="outline"
-            className="text-white border-white hover:bg-white hover:text-primary shadow-md font-medium font-bold text-black"
-            onClick={async () => {
-              await logout();
-              setLocation("/login");
-            }}
-          >
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Painel Administrativo</h1>
+            <p className="text-gray-600">Gerencie massagistas, agendamentos e muito mais</p>
+          </div>
+          <Button onClick={handleLogout} variant="outline">
             <LogOut className="mr-2 h-4 w-4" />
             Sair
           </Button>
         </div>
-      </header>
 
-      <main className="container mx-auto py-6">
-        {/* Abas para navegação */}
-        <div className="mb-6 border-b border-gray-200">
-          <div className="flex space-x-4 flex-wrap">
-            <button
-              onClick={() => setActiveTab("agendamentos")}
-              className={`py-3 px-4 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === "agendamentos"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Agendamentos
-            </button>
-            <button
-              onClick={() => setActiveTab("massagistas")}
-              className={`py-3 px-4 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === "massagistas"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Massagistas
-            </button>
-            <button
-              onClick={() => setActiveTab("referrals")}
-              className={`py-3 px-4 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === "referrals"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Indique e Ganhe
-            </button>
-            <button
-              onClick={() => setActiveTab("estatisticas")}
-              className={`py-3 px-4 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === "estatisticas"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              Estatísticas
-            </button>
-          </div>
-        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="massagistas">Massagistas</TabsTrigger>
+            <TabsTrigger value="agendamentos">Agendamentos</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
+            <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
+          </TabsList>
 
-        {/* Conteúdo da aba de Agendamentos */}
-        {activeTab === "agendamentos" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Calendário */}
-            <Card className="md:col-span-1 h-fit self-start">
-              <CardHeader className="pb-1 pt-4">
-                <CardTitle>Calendário</CardTitle>
-                <CardDescription>
-                  Selecione uma data para ver os agendamentos
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center p-4">
-                {/* Utilizamos um wrapper para garantir que o calendário fique centralizado */}
-                <div className="w-full flex justify-center">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    locale={ptBR}
-                    fixedWeeks
-                    captionLayout="dropdown-buttons"
-                    fromYear={2025}
-                    toYear={2030}
-                    ISOWeek
-                  />
-                </div>
-                <div className="mt-4 w-full">
-                  <Button
-                    onClick={handleOpenCreateModal}
-                    className="w-full bg-secondary text-white"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Novo Agendamento
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Lista de Agendamentos */}
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>
-                  Agendamentos -{" "}
-                  {format(selectedDate, "dd 'de' MMMM 'de' yyyy", {
-                    locale: ptBR,
-                  })}
-                </CardTitle>
-                <CardDescription>
-                  {filteredAppointments.length === 0
-                    ? "Não há agendamentos para esta data"
-                    : `${filteredAppointments.length} agendamento(s) encontrado(s)`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingAppointments ? (
-                  <div className="flex justify-center p-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : isErrorAppointments ? (
-                  <div className="text-center text-red-500 p-4">
-                    Erro ao carregar agendamentos.{" "}
-                    <Button
-                      onClick={() => refetchAppointments()}
-                      variant="link"
-                    >
-                      Tentar novamente
-                    </Button>
-                  </div>
-                ) : filteredAppointments.length === 0 ? (
-                  <div className="text-center p-4 text-gray-500">
-                    Não há agendamentos para a data selecionada.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Horário</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Serviço</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Código de Indicação</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredAppointments
-                          .sort((a, b) => a.time.localeCompare(b.time))
-                          .map((appointment) => (
-                            <TableRow key={appointment.id}>
-                              <TableCell>
-                                {format(
-                                  parse(
-                                    appointment.date,
-                                    "yyyy-MM-dd",
-                                    new Date(),
-                                  ),
-                                  "dd/MM/yyyy",
-                                )}
-                              </TableCell>
-                              <TableCell>{appointment.time}</TableCell>
-                              <TableCell>
-                                <div>
-                                  <p className="font-medium">
-                                    {appointment.clientName}
-                                  </p>
-                                  <p className="text-sm text-gray-500">
-                                    {appointment.clientPhone}
-                                  </p>
-                                </div>
-                              </TableCell>
-                              <TableCell>{appointment.service}</TableCell>
-                              <TableCell>
-                                {getStatusBadge(appointment.status)}
-                              </TableCell>
-                              <TableCell>
-                                {appointment.referralCode ? (
-                                  <Badge variant="secondary" className="font-mono">
-                                    {appointment.referralCode}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-gray-400">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  {appointment.status === "agendado" && (
-                                    <Button
-                                      variant="outline"
-                                      size="icon"
-                                      onClick={() => handleConfirmAppointment(appointment.id)}
-                                      title="Confirmar Agendamento"
-                                    >
-                                      <Check className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() => handleOpenEditModal(appointment)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="outline" size="icon">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Confirmar exclusão
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Tem certeza que deseja excluir este agendamento?
-                                          Esta ação não pode ser desfeita.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() =>
-                                            deleteMutation.mutate(appointment.id)
-                                          }
-                                        >
-                                          Excluir
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Conteúdo da aba de Massagistas */}
-        {activeTab === "massagistas" && (
-          <div className="grid grid-cols-1 gap-8">
+          <TabsContent value="massagistas" className="space-y-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Massagistas</CardTitle>
-                  <CardDescription>
-                    Gerencie as massagistas da clínica
-                  </CardDescription>
+                  <CardDescription>Gerencie as massagistas da clínica</CardDescription>
                 </div>
-                <Button
-                  onClick={handleOpenCreateMassagistaModal}
-                  className="bg-secondary text-white"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Massagista
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={() => refetchMassagistas()} variant="outline" size="sm">
+                    🔄 Atualizar
+                  </Button>
+                  <Button onClick={handleOpenCreateMassagistaModal}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nova Massagista
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingMassagistas ? (
                   <div className="flex justify-center p-4">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : isErrorMassagistas ? (
-                  <div className="text-center text-red-500 p-4">
-                    Erro ao carregar massagistas.{" "}
-                    <Button onClick={() => refetchMassagistas()} variant="link">
-                      Tentar novamente
-                    </Button>
+                    <span className="ml-2">Carregando massagistas...</span>
                   </div>
                 ) : massagistas.length === 0 ? (
-                  <div className="text-center p-4 text-gray-500">
-                    Não há massagistas cadastradas no sistema.
+                  <div className="text-center text-gray-500 p-4">
+                    Nenhuma massagista cadastrada.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Foto</TableHead>
-                          <TableHead>Nome</TableHead>
-                          <TableHead>Descrição</TableHead>
-                          <TableHead>Suíte</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {massagistas.map((massagista) => (
-                          <TableRow key={massagista.id}>
-                            <TableCell>
-                              <div className="h-12 w-12 rounded-full overflow-hidden">
-                                <img
-                                  src={massagista.fotoUrl}
-                                  alt={massagista.nome}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {massagista.nome}
-                            </TableCell>
-                            <TableCell className="max-w-xs truncate">
-                              {massagista.descricao}
-                            </TableCell>
-                            <TableCell>
-                              {massagista.suiteMaster ? (
-                                <Badge className="bg-secondary text-white">
-                                  Suíte Master
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-gray-500 text-white">
-                                  Suíte Padrão
-                                </Badge>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {massagistas.map((massagista) => (
+                      <Card key={massagista.id} className="overflow-hidden">
+                        <div className="aspect-square relative">
+                          {massagista.fotoUrl ? (
+                            <img
+                              src={massagista.fotoUrl}
+                              alt={massagista.nome}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-gray-400">Sem foto</span>
+                            </div>
+                          )}
+                        </div>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold text-lg">{massagista.nome}</h3>
+                            <div className="flex gap-1">
+                              {massagista.suiteMaster && (
+                                <Badge variant="secondary">Master</Badge>
                               )}
-                            </TableCell>
-                            <TableCell>
-                              {massagista.ativa ? (
-                                <Badge className="bg-green-500">Ativa</Badge>
-                              ) : (
-                                <Badge className="bg-red-500">Inativa</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex space-x-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleOpenEditMassagistaModal(massagista)
-                                  }
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-red-500 border-red-200"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Excluir Massagista
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Tem certeza que deseja excluir esta
-                                        massagista? Esta ação não pode ser
-                                        desfeita.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancelar
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          deleteMassagistaMutation.mutate(
-                                            massagista.id,
-                                          )
-                                        }
-                                        className="bg-red-500 text-white hover:bg-red-600"
-                                      >
-                                        Excluir
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Conteúdo da aba de Referências (Indique e Ganhe) */}
-        {activeTab === "referrals" && (
-          <div>
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Sistema de Indicações</CardTitle>
-                <CardDescription>
-                  Gerenciamento do programa "Indique e Ganhe". Cada cliente que
-                  indica recebe um desconto após a indicação ser confirmada.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoadingReferrals ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2">Carregando referências...</span>
-                  </div>
-                ) : referrals.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>Nenhuma referência encontrada.</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Telefone</TableHead>
-                        <TableHead>Indicações</TableHead>
-                        <TableHead>Descontos</TableHead>
-                        <TableHead>Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {referrals.map((referral) => (
-                        <TableRow key={referral.id}>
-                          <TableCell className="font-medium">
-                            {referral.referralCode}
-                          </TableCell>
-                          <TableCell>{referral.clientName}</TableCell>
-                          <TableCell>{referral.clientPhone}</TableCell>
-                          <TableCell>{referral.totalReferred}</TableCell>
-                          <TableCell>
-                            {referral.discountsEarned >
-                            referral.discountsUsed ? (
-                              <Badge className="bg-green-500">
-                                {referral.discountsEarned -
-                                  referral.discountsUsed}{" "}
-                                disponíveis
+                              <Badge variant={massagista.ativa ? "default" : "secondary"}>
+                                {massagista.ativa ? "Ativa" : "Inativa"}
                               </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="text-gray-500"
-                              >
-                                Nenhum desconto disponível
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
+                            </div>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-4">{massagista.descricao}</p>
+                          <div className="flex justify-between">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() =>
-                                useDiscountMutation.mutate(referral.id)
-                              }
-                              disabled={
-                                referral.discountsEarned <=
-                                  referral.discountsUsed ||
-                                useDiscountMutation.isPending
-                              }
-                              className={
-                                referral.discountsEarned >
-                                referral.discountsUsed
-                                  ? "text-green-500 border-green-200 hover:bg-green-50"
-                                  : ""
-                              }
+                              onClick={() => handleOpenEditMassagistaModal(massagista)}
                             >
-                              {useDiscountMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                              <Edit className="mr-1 h-3 w-3" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteMassagistaMutation.mutate(massagista.id)}
+                            >
+                              <Trash2 className="mr-1 h-3 w-3" />
+                              Excluir
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="agendamentos" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Calendário */}
+              <Card className="lg:col-span-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
+                    Calendário
+                  </CardTitle>
+                  <CardDescription>
+                    Selecione uma data para ver os agendamentos
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    className="rounded-md border"
+                    modifiers={{
+                      hasAppointments: datesWithAppointments,
+                    }}
+                    modifiersStyles={{
+                      hasAppointments: {
+                        backgroundColor: 'hsl(var(--primary))',
+                        color: 'white',
+                        fontWeight: 'bold',
+                      },
+                    }}
+                  />
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-3 h-3 bg-primary rounded"></div>
+                      <span>Dias com agendamentos</span>
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      Total de agendamentos: {appointments.length}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Lista de agendamentos da data selecionada */}
+              <Card className="lg:col-span-2">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>
+                      Agendamentos para {selectedDate.toLocaleDateString('pt-BR', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </CardTitle>
+                    <CardDescription>
+                      {appointmentsForSelectedDate.length} agendamento{appointmentsForSelectedDate.length !== 1 ? 's' : ''} encontrado{appointmentsForSelectedDate.length !== 1 ? 's' : ''}
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => setSelectedDate(new Date())} 
+                      variant="outline" 
+                      size="sm"
+                    >
+                      Hoje
+                    </Button>
+                    <Button onClick={() => refetchAppointments()} variant="outline" size="sm">
+                      🔄 Atualizar
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingAppointments ? (
+                    <div className="flex justify-center p-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <span className="ml-2">Carregando agendamentos...</span>
+                    </div>
+                  ) : appointmentsForSelectedDate.length === 0 ? (
+                    <div className="text-center text-gray-500 p-8">
+                      <CalendarIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-lg font-medium mb-2">Nenhum agendamento</h3>
+                      <p className="text-sm">
+                        Não há agendamentos para esta data.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {appointmentsForSelectedDate
+                        .sort((a, b) => a.time.localeCompare(b.time))
+                        .map((appointment) => (
+                        <Card key={appointment.id} className="p-4 border-l-4 border-l-primary">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <User className="h-4 w-4 text-gray-500" />
+                                <span className="font-semibold text-lg">{appointment.clientName}</span>
+                                {getStatusBadge(appointment.status)}
+                              </div>
+                              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                                <div className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" />
+                                  {appointment.clientPhone}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span className="font-medium">{appointment.time}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {getServiceLabel(appointment.service)}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Duração: {appointment.duration} min
+                                </div>
+                              </div>
+                              {appointment.notes && (
+                                <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                                  <strong>Observações:</strong> {appointment.notes}
+                                </div>
+                              )}
+                              {appointment.referralCode && (
+                                <div className="flex items-center gap-1 text-sm text-blue-600">
+                                  <span>🎟️ Código de indicação: <strong>{appointment.referralCode}</strong></span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-400 ml-4">
+                              <div>ID: #{appointment.id}</div>
+                              <div>Criado: {formatDateTime(appointment.createdAt)}</div>
+                            </div>
+                          </div>
+                          <div className="flex justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAppointment(appointment)}
+                              disabled={deleteAppointmentMutation.isPending}
+                              className="text-xs text-red-600 hover:text-red-700"
+                            >
+                              {deleteAppointmentMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
                               ) : (
-                                <>
-                                  <Check className="h-4 w-4 mr-1" />
-                                  Usar Desconto
-                                </>
+                                <Trash2 className="h-3 w-3" />
                               )}
                             </Button>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                        </Card>
                       ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
-        {/* Conteúdo da aba de Estatísticas */}
-        {activeTab === "estatisticas" && (
-          <div>
-            <Card className="mb-6">
+            {/* Resumo de todos os agendamentos */}
+            <Card>
               <CardHeader>
-                <CardTitle>Estatísticas Mensais</CardTitle>
-                <CardDescription>
-                  Visualização dos agendamentos por mês e histórico de clientes.
-                </CardDescription>
+                <CardTitle>Todos os Agendamentos</CardTitle>
+                <CardDescription>Visão geral de todos os agendamentos da clínica</CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoadingMonthlyStats ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2">Carregando estatísticas...</span>
-                  </div>
-                ) : isErrorMonthlyStats ? (
-                  <div className="text-center text-red-500 p-4">
-                    Erro ao carregar estatísticas.
-                  </div>
-                ) : monthlyStats.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <p>Nenhuma estatística disponível.</p>
+                {appointments.length === 0 ? (
+                  <div className="text-center text-gray-500 p-4">
+                    Nenhum agendamento encontrado.
                   </div>
                 ) : (
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">
-                      Agendamentos por Mês
-                    </h3>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Mês</TableHead>
-                          <TableHead>Total de Agendamentos</TableHead>
-                          <TableHead>Número de Clientes</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {monthlyStats.map((stat) => (
-                          <React.Fragment key={stat.month}>
-                            <TableRow
-                              className="cursor-pointer hover:bg-gray-100"
-                              onClick={() => toggleMonthExpansion(stat.month)}
-                            >
-                              <TableCell className="font-medium">
-                                {format(
-                                  new Date(stat.month + "-01T00:00:00"),
-                                  "MMMM 'de' yyyy",
-                                  { locale: ptBR }
-                                )}
-                                {expandedMonths.includes(stat.month) ? (
-                                  <ChevronDown className="ml-2 h-4 w-4 inline-block" />
-                                ) : (
-                                  <ChevronRight className="ml-2 h-4 w-4 inline-block" />
-                                )}
-                              </TableCell>
-                              <TableCell>{stat.count}</TableCell>
-                              <TableCell>{stat.clients.length}</TableCell>
-                            </TableRow>
-
-                            {/* Lista detalhada de clientes quando expandido */}
-                            {expandedMonths.includes(stat.month) && (
-                              <TableRow className="bg-gray-50">
-                                <TableCell colSpan={3} className="p-4">
-                                  <div className="text-sm font-medium mb-2">
-                                    Lista de Clientes:
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    {stat.clientVisits.map((clientVisit, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="flex items-center justify-between p-2 rounded-md bg-white border border-gray-200"
-                                      >
-                                        <div className="flex items-center">
-                                          <UserIcon className="h-4 w-4 mr-2 text-gray-500" />
-                                          <span>{clientVisit.name}</span>
-                                        </div>
-                                        <Badge
-                                          variant="outline"
-                                          className="ml-2 bg-red-50"
-                                        >
-                                          {clientVisit.count}{" "}
-                                          {clientVisit.count === 1
-                                            ? "visita"
-                                            : "visitas"}
-                                        </Badge>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </TableCell>
-                              </TableRow>
+                  <div className="space-y-3">
+                    {appointments
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .slice(0, 10)
+                      .map((appointment) => (
+                      <div key={appointment.id} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{appointment.clientName}</span>
+                            <div className="flex items-center gap-4 text-xs text-gray-600">
+                              <span>{formatDate(appointment.date)} às {appointment.time}</span>
+                              <span>{getServiceLabel(appointment.service)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(appointment.status)}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedDate(new Date(appointment.date))}
+                            className="text-xs"
+                          >
+                            Ver dia
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteAppointment(appointment)}
+                            className="text-xs text-red-600 hover:text-red-700"
+                          >
+                            {deleteAppointmentMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
                             )}
-                          </React.Fragment>
-                        ))}
-                      </TableBody>
-                    </Table>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {appointments.length > 10 && (
+                      <div className="text-center text-sm text-gray-500 pt-2">
+                        Mostrando 10 de {appointments.length} agendamentos
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
             </Card>
-          </div>
-        )}
+          </TabsContent>
 
-
-      {/* Modal de Criação/Edição de Agendamento */}
-      <Dialog
-        open={appointmentModalOpen}
-        onOpenChange={setAppointmentModalOpen}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Editar Agendamento" : "Novo Agendamento"}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditing
-                ? "Atualize os dados do agendamento conforme necessário."
-                : "Preencha os dados para criar um novo agendamento."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="clientName">Nome do Cliente</Label>
-                <Input
-                  id="clientName"
-                  value={formData.clientName}
-                  onChange={(e) =>
-                    handleFormChange("clientName", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="clientEmail">E-mail</Label>
-                <Input
-                  id="clientEmail"
-                  type="email"
-                  value={formData.clientEmail}
-                  onChange={(e) =>
-                    handleFormChange("clientEmail", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="clientPhone">Telefone</Label>
-                <Input
-                  id="clientPhone"
-                  value={formData.clientPhone}
-                  onChange={(e) =>
-                    handleFormChange("clientPhone", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="service">Serviço</Label>
-                <Select
-                  value={formData.service}
-                  onValueChange={(value) => handleFormChange("service", value)}
-                >
-                  <SelectTrigger id="service">
-                    <SelectValue placeholder="Selecione um serviço" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="massagem-relaxante">
-                      Suíte Padrão
-                    </SelectItem>
-                    <SelectItem value="massagem-relaxante">
-                      Suíte Luxo
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="date">Data</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => handleFormChange("date", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="time">Horário</Label>
-                <Input
-                  id="time"
-                  type="time"
-                  value={formData.time}
-                  onChange={(e) => handleFormChange("time", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="duration">Duração (minutos)</Label>
-                <Input
-                  id="duration"
-                  type="number"
-                  min="30"
-                  step="15"
-                  value={formData.duration}
-                  onChange={(e) =>
-                    handleFormChange("duration", parseInt(e.target.value))
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => handleFormChange("status", value)}
-                >
-                  <SelectTrigger id="status">
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="agendado">Agendado</SelectItem>
-                    <SelectItem value="concluído">Concluído</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="notes">Observações</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => handleFormChange("notes", e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setAppointmentModalOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" className="bg-primary text-white">
-                {createMutation.isPending || updateMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Salvando...
-                  </>
-                ) : isEditing ? (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Atualizar
-                  </>
+          <TabsContent value="historico" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Histórico por Mês</CardTitle>
+                <CardDescription>Agendamentos organizados por mês</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {monthlyStats.length === 0 ? (
+                  <div className="text-center text-gray-500 p-4">
+                    Nenhum histórico disponível.
+                  </div>
                 ) : (
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Criar
-                  </>
+                  <div className="space-y-6">
+                    {monthlyStats.map((stat) => (
+                      <Card key={stat.month} className="p-4">
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-semibold capitalize">{stat.month}</h3>
+                          <Badge variant="outline">{stat.count} agendamentos</Badge>
+                        </div>
+                        <div className="space-y-2">
+                          {stat.appointments.map((appointment) => (
+                            <div key={appointment.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                              <div>
+                                <span className="font-medium">{appointment.clientName}</span>
+                                <span className="text-sm text-gray-600 ml-2">
+                                  {formatDate(appointment.date)} às {appointment.time}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {getStatusBadge(appointment.status)}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDeleteAppointment(appointment)}
+                                  disabled={deleteAppointmentMutation.isPending}
+                                  className="text-xs text-red-600 hover:text-red-700"
+                                >
+                                  {deleteAppointmentMutation.isPending ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-      {/* Modal de Criação/Edição de Massagista */}
-      <Dialog open={massagistaModalOpen} onOpenChange={setMassagistaModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {isEditingMassagista ? "Editar Massagista" : "Nova Massagista"}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditingMassagista
-                ? "Atualize os dados da massagista conforme necessário."
-                : "Preencha os dados para adicionar uma nova massagista."}
-            </DialogDescription>
-          </DialogHeader>
+          <TabsContent value="estatisticas" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Mês com mais agendamentos */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mês com Mais Agendamentos</CardTitle>
+                  <CardDescription>Período de maior movimento</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {monthlyStats.length > 0 ? (
+                    <div className="text-center">
+                      <h3 className="text-2xl font-bold text-primary capitalize">
+                        {monthlyStats[0].month}
+                      </h3>
+                      <p className="text-xl text-gray-600">
+                        {monthlyStats[0].count} agendamentos
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-500">Dados insuficientes</p>
+                  )}
+                </CardContent>
+              </Card>
 
-          <form onSubmit={handleMassagistaSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nome">Nome</Label>
-                <Input
-                  id="nome"
-                  value={massagistaFormData.nome}
-                  onChange={(e) =>
-                    handleMassagistaFormChange("nome", e.target.value)
-                  }
-                  required
-                />
+              {/* Cliente que mais agendou */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Cliente Mais Frequente</CardTitle>
+                  <CardDescription>Quem mais utiliza nossos serviços</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {clientStats.length > 0 ? (
+                    <div className="text-center">
+                      <h3 className="text-xl font-bold text-primary">
+                        {clientStats[0].clientName}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {clientStats[0].clientPhone}
+                      </p>
+                      <p className="text-lg text-gray-600">
+                        {clientStats[0].count} agendamentos
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-500">Dados insuficientes</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Ranking de clientes */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Ranking de Clientes</CardTitle>
+                <CardDescription>Clientes ordenados por frequência</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientStats.length === 0 ? (
+                  <div className="text-center text-gray-500 p-4">
+                    Nenhuma estatística disponível.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {clientStats.slice(0, 10).map((client, index) => (
+                      <div key={`${client.clientName}-${client.clientPhone}`} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                        <div className="flex items-center gap-3">
+                          <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
+                            {index + 1}
+                          </span>
+                          <div>
+                            <p className="font-medium">{client.clientName}</p>
+                            <p className="text-xs text-gray-600">{client.clientPhone}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline">
+                          {client.count} agendamento{client.count > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Estatísticas gerais */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Total de Agendamentos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-primary">{appointments.length}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Clientes Únicos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-primary">{clientStats.length}</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Meses Ativos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-primary">{monthlyStats.length}</p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Modal de Criação/Edição de Massagista */}
+        <Dialog open={massagistaModalOpen} onOpenChange={setMassagistaModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {isEditingMassagista ? "Editar Massagista" : "Nova Massagista"}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditingMassagista
+                  ? "Atualize os dados da massagista conforme necessário."
+                  : "Preencha os dados para adicionar uma nova massagista."}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleMassagistaSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nome">Nome</Label>
+                  <Input
+                    id="nome"
+                    value={massagistaFormData.nome}
+                    onChange={(e) => handleMassagistaFormChange("nome", e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="descricao">Descrição</Label>
+                  <Textarea
+                    id="descricao"
+                    value={massagistaFormData.descricao}
+                    onChange={(e) => handleMassagistaFormChange("descricao", e.target.value)}
+                    rows={3}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Foto da Massagista</Label>
+                  <ImageUpload
+                    onImageUploaded={(imageUrl) =>
+                      handleMassagistaFormChange("fotoUrl", imageUrl)
+                    }
+                    currentImageUrl={massagistaFormData.fotoUrl}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="videoUrl">URL do Vídeo (opcional)</Label>
+                  <Input
+                    id="videoUrl"
+                    placeholder="https://exemplo.com/video.mp4"
+                    value={massagistaFormData.videoUrl}
+                    onChange={(e) => handleMassagistaFormChange("videoUrl", e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="suiteMaster" className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="suiteMaster"
+                      checked={massagistaFormData.suiteMaster}
+                      onChange={(e) =>
+                        handleMassagistaFormChange("suiteMaster", e.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    Suíte Master
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Label htmlFor="ativa" className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="ativa"
+                      checked={massagistaFormData.ativa}
+                      onChange={(e) => handleMassagistaFormChange("ativa", e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    Ativa
+                  </Label>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="descricao">Descrição</Label>
-                <Textarea
-                  id="descricao"
-                  value={massagistaFormData.descricao}
-                  onChange={(e) =>
-                    handleMassagistaFormChange("descricao", e.target.value)
-                  }
-                  rows={3}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="fotoUrl">URL da Foto</Label>
-                <Input
-                  id="fotoUrl"
-                  placeholder="https://exemplo.com/foto.jpg"
-                  value={massagistaFormData.fotoUrl}
-                  onChange={(e) =>
-                    handleMassagistaFormChange("fotoUrl", e.target.value)
-                  }
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="videoUrl">URL do Vídeo (opcional)</Label>
-                <Input
-                  id="videoUrl"
-                  placeholder="https://exemplo.com/video.mp4"
-                  value={massagistaFormData.videoUrl}
-                  onChange={(e) =>
-                    handleMassagistaFormChange("videoUrl", e.target.value)
-                  }
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Label
-                  htmlFor="suiteMaster"
-                  className="flex items-center gap-2"
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setMassagistaModalOpen(false)}
                 >
-                  <input
-                    type="checkbox"
-                    id="suiteMaster"
-                    checked={massagistaFormData.suiteMaster}
-                    onChange={(e) =>
-                      handleMassagistaFormChange(
-                        "suiteMaster",
-                        e.target.checked,
-                      )
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  Suíte Master
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="ativa" className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="ativa"
-                    checked={massagistaFormData.ativa}
-                    onChange={(e) =>
-                      handleMassagistaFormChange("ativa", e.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  Ativa
-                </Label>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setMassagistaModalOpen(false)}
-                className="mt-2 sm:mt-0"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="bg-primary text-white mt-2 sm:mt-0"
-                disabled={
-                  createMassagistaMutation.isPending ||
-                  updateMassagistaMutation.isPending
-                }
-              >
-                {(createMassagistaMutation.isPending ||
-                  updateMassagistaMutation.isPending) && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {isEditingMassagista ? "Atualizar" : "Adicionar"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog do Código de Indicação */}
-      <Dialog 
-        open={referralCodeDialog.isOpen} 
-        onOpenChange={(open) => setReferralCodeDialog(prev => ({ ...prev, isOpen: open }))}
-      >
-        <DialogContent className="sm:max-w-md bg-white rounded-lg shadow-xl">
-          <DialogHeader className="space-y-4">
-            <DialogTitle className="text-2xl font-bold text-center text-primary">
-              Agendamento Confirmado! 🎉
-            </DialogTitle>
-            <DialogDescription className="text-center text-lg">
-              <p className="mb-2">
-                O agendamento de <span className="font-semibold">{referralCodeDialog.clientName}</span> foi confirmado com sucesso!
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Compartilhe o código abaixo para que o cliente possa indicar amigos e ganhar descontos.
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex flex-col items-center space-y-6 py-6">
-            <div className="bg-primary/5 p-8 rounded-xl w-full text-center border-2 border-primary/20">
-              <p className="text-sm text-muted-foreground mb-3">Código de Indicação</p>
-              <p className="text-4xl font-mono font-bold tracking-wider text-primary bg-white py-3 rounded-lg shadow-inner">
-                {referralCodeDialog.code}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 w-full">
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1"
-                onClick={() => referralCodeDialog.code && copyToClipboard(referralCodeDialog.code)}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Copiar Código
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setReferralCodeDialog(prev => ({ ...prev, isOpen: false }))}
-              >
-                Fechar
-              </Button>
-            </div>
-
-            <p className="text-xs text-center text-muted-foreground mt-4">
-              O cliente ganha um desconto a cada 3 indicações que realizarem agendamentos.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </main>
-  </div>
-);
-}
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    createMassagistaMutation.isPending ||
+                    updateMassagistaMutation.isPending
+                  }
+                >
+                  {(createMassagistaMutation.isPending ||
+                    updateMassagistaMutation.isPending) && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {isEditingMassagista ? "Atualizar" : "Adicionar"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+} 

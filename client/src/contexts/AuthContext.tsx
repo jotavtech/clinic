@@ -1,5 +1,28 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiRequest } from '@/lib/queryClient';
+
+// Função auxiliar para fazer requisições
+async function apiRequest(method: string, url: string, data?: any) {
+  const config: RequestInit = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  };
+
+  if (data && method !== "GET") {
+    config.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, config);
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ message: "Erro na requisição" }));
+    throw new Error(errorData.message || `HTTP Error: ${response.status}`);
+  }
+
+  return response.json();
+}
 
 interface AuthContextType {
   isAuthenticated: boolean;
