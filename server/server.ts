@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { storage } from './storage';
 import { app } from './app';
 import { registerRoutes } from './routes';
