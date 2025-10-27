@@ -8,7 +8,7 @@
     "dev:server": "tsx server/server.ts",
     "dev:full": "concurrently \"npm run dev:server\" \"npm run dev\"",
     "build": "vite build",
-    "start": "node --loader tsx server/index.ts",
+    "start": "node --import tsx server/index.ts",
     "check": "tsc",
     "db:push": "drizzle-kit push"
   },
