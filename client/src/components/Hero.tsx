@@ -1,86 +1,21 @@
-import { ArrowDown, ArrowUpRight, Leaf, Sun } from "lucide-react";
-import { useSiteSettings } from "@/lib/catalog";
+import { ArrowDown, ArrowUpRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 export default function Hero() {
-  const { settings } = useSiteSettings();
-  return (
-    <section id="inicio" className="hero-section">
-      <div className="site-shell hero-grid">
-        <div className="hero-copy">
-          <div className="eyebrow">
-            <span /> {settings.tagline || "Bem-estar no seu tempo"}
-          </div>
-          <h1>{settings.heroTitle}</h1>
-          <p>{settings.heroDescription}</p>
-          <div className="hero-actions">
-            <a href="#contato" className="pill-button">
-              Reserve seu momento <ArrowUpRight size={19} />
-            </a>
-            <a href="#servicos" className="text-button">
-              Explore os serviços <ArrowDown size={16} />
-            </a>
-          </div>
-          <div className="hero-note">
-            <span>
-              <Leaf size={17} /> Cuidado com você
-            </span>
-            <i />
-            <span>
-              <Sun size={17} /> Uma pausa na rotina
-            </span>
-          </div>
-        </div>
-        <div className="hero-visual">
-          <img
-            src={settings.heroImageUrl || "/wellness.svg"}
-            alt="Ambiente ilustrativo de tranquilidade e bem-estar"
-            onError={(event) => {
-              event.currentTarget.onerror = null;
-              event.currentTarget.src = "/wellness.svg";
-            }}
-          />
-          <div className="hero-image-label">
-            <span className="status-dot" /> Tempo para respirar. Espaço para
-            você.
-          </div>
-          <div className="hero-stamp">
-            <Flower />{" "}
-            <span>
-              um momento
-              <br />
-              só seu
-            </span>
-          </div>
+  return <section id="inicio" className="clinic-hero">
+    <div className="hero-backdrop" aria-hidden="true">
+      <img src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1600&q=85" alt="" onError={event=>{event.currentTarget.style.display='none';}}/>
+    </div>
+    <div className="container mx-auto px-4 hero-layout">
+      <div className="hero-content">
+        <div className="section-kicker light"><span/>Clínica Executivas · Campina Grande</div>
+        <h1 className="font-display">Experimente o melhor em <span>massagem terapêutica.</span></h1>
+        <p>Cuidamos do seu bem-estar com técnicas exclusivas e profissionais qualificados.</p>
+        <div className="hero-actions">
+          <Button asChild className="bg-secondary text-white hover:bg-secondary/90"><a href="#servicos">Nossos Serviços <ArrowUpRight size={17}/></a></Button>
+          <Button asChild variant="outline" className="hero-secondary"><a href="#contato">Agende uma Sessão <ArrowUpRight size={17}/></a></Button>
         </div>
       </div>
-      <div className="site-shell hero-bottom">
-        <span>Menos pressa. Mais presença.</span>
-        <a href="#sobre">
-          Conheça nosso espaço <ArrowDown size={14} />
-        </a>
-      </div>
-    </section>
-  );
-}
-function Flower() {
-  return (
-    <svg
-      width="26"
-      height="26"
-      viewBox="0 0 40 40"
-      fill="none"
-      aria-hidden="true"
-    >
-      {[0, 60, 120].map((angle) => (
-        <ellipse
-          key={angle}
-          cx="20"
-          cy="20"
-          rx="6"
-          ry="18"
-          stroke="currentColor"
-          transform={`rotate(${angle} 20 20)`}
-        />
-      ))}
-    </svg>
-  );
+      <a href="#sobre" className="hero-scroll"><span>Conheça a clínica</span><ArrowDown size={16}/></a>
+    </div>
+  </section>;
 }

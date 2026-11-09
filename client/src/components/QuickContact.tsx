@@ -1,22 +1,2 @@
-import { Leaf, Heart, Sparkles } from "lucide-react";
-export default function QuickContact() {
-  return (
-    <div className="values-strip">
-      <div className="site-shell">
-        {[
-          [Leaf, "Equilíbrio para o corpo"],
-          [Heart, "Acolhimento em cada detalhe"],
-          [Sparkles, "Bem-estar que acompanha você"],
-        ].map(([Icon, label]) => {
-          const Mark = Icon as typeof Leaf;
-          return (
-            <span key={String(label)}>
-              <Mark size={19} />
-              {String(label)}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+import { ArrowUpRight, Phone } from "lucide-react";
+export default function QuickContact(){return <div className="quick-contact"><div className="container mx-auto px-4"><p><Phone size={20}/><span>Agende agora <strong>55 83 98110-1444</strong></span></p><a href="#contato">Entrar em contato <ArrowUpRight size={17}/></a></div></div>;}

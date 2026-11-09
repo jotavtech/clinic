@@ -1,53 +1,80 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { ArrowUpRight, Menu, X, Flower2 } from "lucide-react";
-import { useSiteSettings } from "@/lib/catalog";
+import { Menu, X } from "lucide-react";
+
 export default function Header() {
-  const [open, setOpen] = useState(false);
-  const { settings } = useSiteSettings();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const isScrolled = window.scrollY > 10;
+      if (isScrolled !== scrolled) {
+        setScrolled(isScrolled);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [scrolled]);
+
+  const navItems = [
+    { label: "Início", href: "#inicio" },
+    { label: "Sobre", href: "#sobre" },
+    { label: "Serviços", href: "#servicos" },
+    { label: "Galeria", href: "#galeria" },
+    { label: "Contato", href: "#contato" },
+    { label: "Admin", href: "/login" },
+  ];
+
   return (
-    <header className="site-header">
-      <div className="site-shell header-inner">
-        <Link href="/" className="brand">
-          <span className="brand-mark">
-            <Flower2 size={25} />
-          </span>
-          <span>
-            {settings.brandName}
-            <small>{settings.tagline}</small>
-          </span>
-        </Link>
-        <button
-          className="menu-toggle"
-          aria-label={open ? "Fechar menu" : "Abrir menu"}
-          aria-expanded={open}
-          aria-controls="main-navigation"
-          onClick={() => setOpen(!open)}
-        >
-          {open ? <X /> : <Menu />}
-        </button>
-        <nav
-          id="main-navigation"
-          aria-label="Navegação principal"
-          className={`site-nav ${open ? "is-open" : ""}`}
-        >
-          {[
-            ["Sobre", "#sobre"],
-            ["Serviços", "#servicos"],
-            ["Equipe", "#galeria"],
-            ["Contato", "#contato"],
-          ].map(([label, href]) => (
-            <a key={href} href={href} onClick={() => setOpen(false)}>
-              {label}
-            </a>
-          ))}
-          <a
-            href="#contato"
-            className="pill-button small"
-            onClick={() => setOpen(false)}
+    <header className={`clinic-header bg-primary text-white sticky top-0 z-50 transition-shadow ${scrolled ? 'shadow-md' : ''}`}>
+      <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <Link href="/" className="clinic-brand font-display text-2xl md:text-3xl font-bold cursor-pointer">
+            Clínica Executivas
+          </Link>
+          <button
+            onClick={toggleMobileMenu}
+            className="md:hidden rounded p-2 focus-visible:outline focus-visible:outline-2"
+            aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="main-navigation"
           >
-            Agendar um momento <ArrowUpRight size={16} />
-          </a>
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        <nav id="main-navigation" aria-label="Navegação principal" className={`${mobileMenuOpen ? "block" : "hidden"} md:block w-full md:w-auto mt-4 md:mt-0`}>
+          <ul className="flex flex-col md:flex-row md:justify-end md:gap-x-6 gap-y-2 font-accent text-sm uppercase">
+            {navItems.map((item, index) => (
+              <li key={index} className="text-center md:text-left py-2 md:py-0">
+                {item.href.startsWith('/') ? (
+                  <Link
+                    href={item.href}
+                    className="hover:text-secondary transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <a
+                    href={item.href}
+                    className="hover:text-secondary transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.label}
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
         </nav>
       </div>
     </header>

@@ -1,91 +1,106 @@
+import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, Users, Loader2 } from "lucide-react";
 import { apiRequest, responseList } from "@/lib/api-request";
-type Professional = {
+import { Loader2 } from "lucide-react";
+
+interface Massagista {
   id: number;
   nome: string;
   descricao: string;
   fotoUrl: string;
+  videoUrl: string | null;
+  suiteMaster: boolean;
   ativa: boolean;
-};
+  createdAt: string;
+}
+
 export default function Gallery() {
-  const {
-    data = [],
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
+  // Buscar massagistas ativas da API
+  const { data: massagistas = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["/api/massagistas"],
     queryFn: () => apiRequest("GET", "/api/massagistas"),
-    select: (data) =>
-      responseList<Professional>(data, "massagistas").filter(
-        (item) => item.ativa,
-      ),
-    refetchInterval: 60000,
+    select: (data: any) => responseList<Massagista>(data, "massagistas").filter(m => m.ativa),
+    refetchInterval: 60000, // Recarregar a cada minuto
   });
+
   return (
-    <section id="galeria" className="section-pad">
-      <div className="site-shell">
-        <div className="section-heading">
-          <div>
-            <div className="eyebrow">03 / Quem cuida de você</div>
-            <h2 className="section-title">
-              Presença que
-              <br />
-              <em>faz a diferença.</em>
-            </h2>
-          </div>
-          <p className="section-copy">
-            Conheça as pessoas que fazem parte da nossa equipe e da sua
-            experiência de cuidado.
+    <section id="galeria" className="remaster-gallery py-16 bg-[#F5F5F5]">
+      <div className="container mx-auto px-4">
+        <motion.div
+          className="text-center mb-12"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          viewport={{ once: true }}
+        >
+          <span className="section-kicker">Nossa equipe</span>
+          <h2 className="text-3xl md:text-4xl font-display mb-4">
+            Nossas Profissionais
+          </h2>
+          <p className="max-w-2xl mx-auto">
+            Conheça nossa equipe de profissionais qualificadas da Clínica
+            Executivas.
           </p>
-        </div>
+        </motion.div>
+
         {isLoading ? (
-          <div className="empty-state" role="status">
-            <Loader2 className="animate-spin" />
-            Carregando profissionais…
+          <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-gray-600">Carregando profissionais...</span>
           </div>
         ) : isError ? (
-          <div className="empty-state" role="alert">
-            <p>Erro ao carregar profissionais. Tente novamente.</p>
-            <button className="text-button" onClick={() => refetch()}>
-              Tentar novamente
-            </button>
+          <div className="text-center py-12">
+            <p className="text-red-600">Erro ao carregar profissionais. Tente novamente.</p>
+            <button type="button" className="mt-3 underline" disabled={isFetching} onClick={() => refetch()}>Tentar novamente</button>
           </div>
-        ) : data.length === 0 ? (
-          <div className="empty-state">
-            <Users size={30} />
-            <h3>Nossa equipe, em breve por aqui.</h3>
-            <p>Os perfis publicados pela clínica aparecerão neste espaço.</p>
+        ) : massagistas.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-600">Nenhuma profissional disponível no momento.</p>
           </div>
         ) : (
-          <div className="team-grid">
-            {data.map((person) => (
-              <article className="team-card" key={person.id}>
-                <div className="team-image">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {massagistas.map((massagista, index) => (
+              <motion.div
+                key={massagista.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                viewport={{ once: true }}
+                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300"
+              >
+                <div className="relative overflow-hidden h-80">
                   <img
-                    src={person.fotoUrl || "/placeholder.svg"}
-                    alt={`Foto de ${person.nome}`}
+                    src={massagista.fotoUrl || "/placeholder.svg"}
                     loading="lazy"
-                    onError={(event) => {
-                      event.currentTarget.onerror = null;
-                      event.currentTarget.src = "/placeholder.svg";
+                    alt={`Foto de ${massagista.nome}`}
+                    className="w-full h-full object-cover object-top"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.onerror = null;
+                      target.src = "/placeholder.svg";
                     }}
                   />
+                  {massagista.suiteMaster && (
+                    <div className="absolute top-0 right-0 bg-red-600 text-white px-3 py-1 m-2 rounded-sm text-sm font-bold">
+                      Suíte Master
+                    </div>
+                  )}
                 </div>
-                <div className="team-info">
-                  <div>
-                    <h3>{person.nome}</h3>
-                    <p>{person.descricao}</p>
-                  </div>
+                <div className="p-4 text-center bg-primary text-white">
+                  <h3 className="text-xl font-display font-semibold">
+                    {massagista.nome}
+                  </h3>
+                  <p className="text-sm text-gray-200 mt-1">
+                    {massagista.descricao}
+                  </p>
                   <a
                     href="#contato"
-                    aria-label={`Agendar com a clínica — ${person.nome}`}
+                    className="inline-block mt-3 bg-secondary text-black px-4 py-2 rounded text-sm font-medium hover:bg-opacity-90 transition-colors"
                   >
-                    <ArrowUpRight size={22} />
+                    Agendar
                   </a>
                 </div>
-              </article>
+              </motion.div>
             ))}
           </div>
         )}

@@ -1,404 +1,611 @@
-import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { z } from "zod";
+import { CalendarIcon, ClipboardCopy, CheckCircle } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  ArrowUpRight,
-  Check,
-  Clock3,
-  Copy,
-  Loader2,
-  MapPin,
-  MessageCircle,
-} from "lucide-react";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
 import {
-  bookingSchema,
-  makeBookingSchema,
-  bookingTimes,
-  clinicNow,
-} from "@shared/booking";
-import { money, whatsappLink } from "@shared/catalog";
-import { useServices, useSiteSettings } from "@/lib/catalog";
-import { apiRequest } from "@/lib/api-request";
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { bookingSchema, bookingTimes, clinicNow, parseCalendarDate } from "@shared/booking";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type Booking = z.infer<typeof bookingSchema>;
-const defaults: Booking = {
-  clientName: "",
-  clientPhone: "",
-  service: "",
-  date: "",
-  time: "",
-  duration: 60,
-  notes: "",
-  referredBy: "",
-};
+const appointmentFormSchema = bookingSchema;
+
+type AppointmentFormValues = z.infer<typeof appointmentFormSchema>;
+
 export default function Contact() {
-  const {
-    settings,
-    isError: settingsError,
-    isPending: settingsPending,
-    refetch: refetchSettings,
-  } = useSiteSettings();
-  const { data: services = [], isPending, isError, refetch } = useServices();
   const { toast } = useToast();
-  const [receipt, setReceipt] = useState<{ code?: string } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const form = useForm<Booking>({
-    resolver: zodResolver(makeBookingSchema(settings)),
-    defaultValues: defaults,
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [isReferralModalOpen, setIsReferralModalOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const appointmentForm = useForm<AppointmentFormValues>({
+    resolver: zodResolver(appointmentFormSchema),
+    defaultValues: {
+      clientName: "",
+      clientPhone: "",
+      service: "",
+      date: "",
+      time: "",
+      duration: 60,
+      notes: "",
+      referredBy: "",
+    },
   });
-  const serviceId = form.watch("service");
-  const date = form.watch("date");
-  const service = services.find((item) => String(item.id) === serviceId);
-  const duration = service?.durationMinutes || 60;
-  const slots = bookingTimes(date, settings, duration).filter(
-    (time) => date !== clinicNow().date || time > clinicNow().time,
-  );
-  const blocked =
-    isPending ||
-    isError ||
-    settingsError ||
-    settingsPending ||
-    services.length === 0;
-  useEffect(() => {
-    const select = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail;
-      if (services.some((item) => String(item.id) === id)) {
-        form.setValue("service", id, { shouldValidate: true });
-        form.setValue("time", "");
-      }
-    };
-    window.addEventListener("booking:service", select);
-    return () => window.removeEventListener("booking:service", select);
-  }, [services, form]);
-  useEffect(() => {
-    form.setValue("duration", duration);
-  }, [duration, form]);
-  useEffect(() => {
-    form.setValue("time", "");
-  }, [date, serviceId, form]);
-  async function submit(data: Booking) {
+
+  const selectedDate = appointmentForm.watch("date");
+
+  async function onAppointmentSubmit(data: AppointmentFormValues) {
     try {
-      if (!service) throw new Error("Escolha um serviço disponível.");
-      const result = await apiRequest("POST", "/api/appointments", {
-        ...data,
-        duration: service.durationMinutes,
-      });
-      if (!result.appointment?.id)
-        throw new Error(
-          "Não foi possível confirmar o envio. Fale com a clínica antes de tentar novamente.",
-        );
-      setReceipt({ code: result.appointment.referralCode });
-      setCopied(false);
-      form.reset(defaults);
+      const responseData = await apiRequest("POST", "/api/appointments", data);
+      const appointmentData = responseData?.appointment;
+
+      if (!appointmentData?.id) throw new Error("Não foi possível confirmar o agendamento. Entre em contato com a clínica antes de tentar novamente.");
+
+      // Mensagem de sucesso simples
       toast({
-        title: "Solicitação enviada",
-        description:
-          "A clínica entrará em contato para confirmar seu agendamento.",
+        title: "Agendamento realizado com sucesso!",
+        description: "Aguarde nossa confirmação por WhatsApp.",
       });
+
+      // Se o cliente recebeu um código de referência, mostramos no modal
+      setIsCopied(false);
+      if (appointmentData && appointmentData.referralCode) {
+        setReferralCode(appointmentData.referralCode);
+        setIsReferralModalOpen(true);
+      }
+
+      // Resetar o formulário para valores padrão
+      appointmentForm.reset({
+        clientName: "",
+        clientPhone: "",
+        service: "",
+        date: "",
+        time: "",
+        duration: 60,
+        notes: "",
+        referredBy: "",
+      });
+
+      // Desmarcar os validadores de erro
+      appointmentForm.clearErrors();
     } catch (error) {
+      console.error("Erro ao agendar:", error);
+
+      let errorMessage =
+        "Ocorreu um erro ao realizar o agendamento. Tente novamente.";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       toast({
-        title: "Erro ao agendar",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Tente novamente em instantes.",
         variant: "destructive",
+        title: "Erro ao agendar",
+        description: errorMessage,
       });
     }
   }
-  const error = (key: keyof Booking) => form.formState.errors[key]?.message;
-  const fieldError = (key: keyof Booking) =>
-    error(key) ? (
-      <p id={`${key}-error`} className="field-error" role="alert">
-        {String(error(key))}
-      </p>
-    ) : null;
-  const common = (key: keyof Booking) => ({
-    "aria-invalid": !!error(key),
-    "aria-describedby": error(key) ? `${key}-error` : undefined,
-  });
+
+  // Função para copiar o código para a área de transferência
+  const copyReferralCode = async () => {
+    if (referralCode) {
+      try {
+        await navigator.clipboard.writeText(referralCode);
+        setIsCopied(true);
+      } catch {
+          toast({
+            variant: "destructive",
+            title: "Erro ao copiar",
+            description: "Não foi possível copiar o código. Tente novamente.",
+          });
+      }
+    }
+  };
+
+  // Função para redirecionar para o WhatsApp da clínica
+  const redirectToWhatsAppPayment = () => {
+    // Formatar a mensagem para o WhatsApp
+    const message = `Olá! Gostaria de realizar o pagamento do meu agendamento na Clínica Executivas.`;
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/5583981101444?text=${encodedMessage}`;
+
+    // Abrir o WhatsApp em uma nova aba
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
-    <section id="contato" className="booking-section section-pad">
-      <div className="site-shell booking-grid">
-        <div className="booking-copy">
-          <div className="eyebrow">04 / Um convite para cuidar de si</div>
-          <h2 className="section-title">
-            Abra espaço
-            <br />
-            para <em>você.</em>
+    <section id="contato" className="remaster-booking py-20 bg-[#1a1a1a] text-white">
+      <div className="container mx-auto px-4">
+        <motion.div
+          className="text-center mb-12"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true }}
+        >
+          <span className="section-kicker light">Reserve seu horário</span>
+          <h2 className="text-3xl md:text-4xl font-display mb-4">
+            Agendamento
           </h2>
-          <p className="section-copy">
-            Escolha seu serviço e o melhor horário. Nós cuidamos dos próximos
-            passos com você.
+          <p className="max-w-xl mx-auto text-gray-300">
+            Faça seu agendamento online de forma rápida e fácil.
           </p>
-          <div className="contact-details">
-            <div>
-              <Clock3 size={20} />
-              <p>
-                <strong>Nosso horário</strong>
-                <span>
-                  Segunda a sexta: {settings.weekdayStart} às{" "}
-                  {settings.weekdayEnd}
-                </span>
-                <span>
-                  {settings.weekendsOpen
-                    ? `Sábado e domingo: ${settings.weekendStart} às ${settings.weekendEnd}`
-                    : "Fechado aos sábados e domingos"}
-                </span>
-              </p>
-            </div>
-            {settings.address && (
-              <div>
-                <MapPin size={20} />
-                <p>
-                  <strong>Onde estamos</strong>
-                  <span>{settings.address}</span>
-                </p>
-              </div>
-            )}
-            {settings.phone && (
-              <a
-                href={whatsappLink(settings.phone)}
-                target="_blank"
-                rel="noreferrer"
+        </motion.div>
+
+        <motion.div
+          className="max-w-2xl mx-auto"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ duration: 0.7 }}
+          viewport={{ once: true }}
+        >
+          <div className="bg-[#252525] p-4 sm:p-8 rounded-lg shadow-md">
+            <Form {...appointmentForm}>
+              <form
+                onSubmit={appointmentForm.handleSubmit(onAppointmentSubmit)}
+                className="space-y-6"
               >
-                <MessageCircle size={20} />
-                <p>
-                  <strong>Prefere conversar?</strong>
-                  <span>
-                    Fale com a clínica pelo WhatsApp <ArrowUpRight size={14} />
-                  </span>
-                </p>
-              </a>
-            )}
-            {settings.email && (
-              <a href={`mailto:${settings.email}`} className="contact-email">
-                {settings.email}
-              </a>
-            )}
-          </div>
-          <div className="booking-assurance">
-            <span className="status-dot" /> Uma solicitação, sem pressa.
-            <p>O horário será confirmado pela nossa equipe após o envio.</p>
-          </div>
-        </div>
-        <div className="booking-card">
-          <div className="booking-card-heading">
-            <span className="eyebrow">Seu próximo momento</span>
-            <span className="booking-step">Agendamento</span>
-          </div>
-          {(isError || settingsError) && (
-            <div role="alert" className="inline-notice">
-              Não foi possível carregar as opções de agendamento.{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  void refetch();
-                  void refetchSettings();
-                }}
-                className="underline"
-              >
-                Tentar novamente
-              </button>
-            </div>
-          )}
-          {!isPending && !isError && services.length === 0 && (
-            <div role="status" className="inline-notice">
-              A clínica ainda não publicou serviços para agendamento.
-            </div>
-          )}
-          <form onSubmit={form.handleSubmit(submit)} noValidate>
-            <fieldset
-              disabled={blocked || form.formState.isSubmitting}
-              className="booking-fields"
-            >
-              <legend className="sr-only">Dados do agendamento</legend>
-              <div className="form-row">
-                <div className="form-field">
-                  <label htmlFor="clientName">Nome Completo</label>
-                  <input
-                    id="clientName"
-                    autoComplete="name"
-                    placeholder="Como podemos chamar você?"
-                    {...form.register("clientName")}
-                    {...common("clientName")}
-                  />
-                  {fieldError("clientName")}
+                {/* Layout em seções organizadas */}
+                <div className="space-y-6">
+                  {/* Seção de Informações Pessoais */}
+                  <div className="bg-[#2a2a2a] p-4 rounded-lg">
+                    <h3 className="text-lg font-medium mb-3 text-white">
+                      Informações Pessoais
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={appointmentForm.control}
+                        name="clientName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome Completo</FormLabel>
+                            <FormControl>
+                              <Input
+                                autoComplete="name" placeholder="Seu nome completo"
+                                className="bg-white text-gray-900 placeholder:text-gray-500"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={appointmentForm.control}
+                        name="clientPhone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Telefone/WhatsApp</FormLabel>
+                            <FormControl>
+                              <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="(83) 99999-9999"
+                                className="bg-white text-gray-900 placeholder:text-gray-500"
+                                {...field}/>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Seção de Detalhes do Serviço */}
+                  <div className="bg-[#2a2a2a] p-4 rounded-lg">
+                    <h3 className="text-lg font-medium mb-3 text-white">
+                      Detalhes do Serviço
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      <FormField
+                        control={appointmentForm.control}
+                        name="service"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Serviço Desejado</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger
+                                  className={cn(
+                                    "w-full",
+                                    field.value
+                                      ? "text-gray-600"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  <SelectValue placeholder="Selecione um serviço" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="suite-padrao">
+                                  Suíte Padrão — R$ 250,00
+                                </SelectItem>
+                                <SelectItem value="suite-master">
+                                  Suíte Master — R$ 395,00
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Seção de Data e Hora */}
+                  <div className="bg-[#2a2a2a] p-4 rounded-lg">
+                    <h3 className="text-lg font-medium mb-3 text-white">
+                      Data e Hora
+                    </h3>
+                    <div className="flex flex-col space-y-4">
+                      {/* Data do agendamento */}
+                      <FormField
+                        control={appointmentForm.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Data</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal",
+                                      field.value
+                                        ? "text-gray-500"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
+                                    {field.value ? (
+                                      format(parseCalendarDate(field.value)!, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                                    ) : (
+                                      <span>Selecione uma data</span>
+                                    )}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                className="w-auto p-0"
+                                align="center"
+                              >
+                                <Calendar
+                                  mode="single"
+                                  selected={
+                                    field.value
+                                      ? new Date(field.value + "T12:00:00")
+                                      : undefined
+                                  }
+                                  onSelect={(date) => {
+                                    if (date) {
+                                      // Evita problemas de fuso horário ao adicionar um horário neutro
+                                      const formattedDate = format(
+                                        date,
+                                        "yyyy-MM-dd",
+                                      );
+
+                                      field.onChange(formattedDate);
+                                      appointmentForm.setValue("time", "");
+                                    } else {
+                                      field.onChange("");
+                                    }
+                                  }}
+                                  disabled={(date) => format(date, "yyyy-MM-dd") < clinicNow().date}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Horário alinhado logo abaixo da data */}
+                      <FormField
+                        control={appointmentForm.control}
+                        name="time"
+                        render={({ field }) => {
+                          // Determinar se é fim de semana com base na data selecionada
+                          const isWeekend = (() => {
+                            if (!selectedDate)
+                              return false;
+                            const date = new Date(
+                              selectedDate + "T12:00:00",
+                            );
+                            const day = date.getDay();
+                            return day === 0 || day === 6; // 0 = domingo, 6 = sábado
+                          })();
+
+                          const dateText = selectedDate
+                            ? (() => {
+                                try {
+                                  const dateParts = selectedDate.split("-");
+                                  const year = parseInt(dateParts[0], 10);
+                                  const month = parseInt(dateParts[1], 10) - 1;
+                                  const day = parseInt(dateParts[2], 10);
+                                  const date = new Date(year, month, day);
+                                  return format(date, "dd/MM/yyyy");
+                                } catch {
+                                  return "";
+                                }
+                              })()
+                            : "";
+
+                          return (
+                            <FormItem>
+                              <FormLabel>
+                                Horário{" "}
+                                {dateText && (
+                                  <span className="text-sm font-normal text-gray-400 ml-2">
+                                    para {dateText}
+                                  </span>
+                                )}
+                              </FormLabel>
+                              <Select
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                disabled={!selectedDate}
+                              >
+                                <FormControl>
+                                  <SelectTrigger
+                                    className={cn(
+                                      "w-full",
+                                      field.value
+                                        ? "text-gray-600"
+                                        : "text-muted-foreground",
+                                    )}
+                                  >
+                                    <SelectValue placeholder="Selecione um horário" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {bookingTimes(selectedDate).filter(time => selectedDate !== clinicNow().date || time > clinicNow().time).map(time => (
+                                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                              <p className="text-xs text-gray-400 mt-1">
+                                {isWeekend
+                                  ? "Sábados e domingos: 9:00 - 20:00"
+                                  : "Segunda a sexta: 8:30 - 21:00"}
+                              </p>
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Seção de Referência e Observações */}
+                  <div className="bg-[#2a2a2a] p-4 rounded-lg">
+                    <h3 className="text-lg font-medium mb-3 text-white">
+                      Referência e Observações
+                    </h3>
+
+                    {/* Campo de código de referência */}
+                    <FormField
+                      control={appointmentForm.control}
+                      name="referredBy"
+                      render={({ field }) => (
+                        <FormItem className="mb-4">
+                          <FormLabel>Código de Indicação (opcional)</FormLabel>
+                          <FormControl>
+                            <Input
+                              className="bg-white text-gray-900"
+                              placeholder="Se você foi indicado por alguém, digite o código aqui"
+                              {...field}
+                              value={field.value || ""}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-white mt-1">
+                            Se alguém te indicou, insira o código dela para que
+                            ela ganhe um desconto.
+                          </p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Campo de observações */}
+                    <FormField
+                      control={appointmentForm.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Observações</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Há algo que gostaria que a equipe soubesse?"
+                              className="min-h-[80px] bg-white text-gray-900"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                          <p className="text-xs text-gray-400 mt-1">
+                            <span className="text-red-400">*</span> Para realizar o pagamento, você será redirecionado para o WhatsApp da clínica.
+                          </p>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
-                <div className="form-field">
-                  <label htmlFor="clientPhone">Telefone/WhatsApp</label>
-                  <input
-                    id="clientPhone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="(00) 00000-0000"
-                    {...form.register("clientPhone")}
-                    {...common("clientPhone")}
-                  />
-                  {fieldError("clientPhone")}
-                </div>
-              </div>
-              <div className="form-field">
-                <label htmlFor="service">Serviço Desejado</label>
-                <select
-                  id="service"
-                  {...form.register("service")}
-                  {...common("service")}
-                >
-                  <option value="">Selecione um serviço</option>
-                  {services.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} · {item.durationMinutes} min ·{" "}
-                      {money(item.priceCents)}
-                    </option>
-                  ))}
-                </select>
-                {fieldError("service")}
-              </div>
-              {service && (
-                <div className="booking-summary">
-                  <span>
-                    {service.name}
-                    <small>{service.durationMinutes} minutos de cuidado</small>
-                  </span>
-                  <strong>{money(service.priceCents)}</strong>
-                </div>
-              )}
-              <div className="form-row">
-                <div className="form-field">
-                  <label htmlFor="date">Data</label>
-                  <input
-                    id="date"
-                    type="date"
-                    min={clinicNow().date}
-                    {...form.register("date")}
-                    {...common("date")}
-                  />
-                  {fieldError("date")}
-                </div>
-                <div className="form-field">
-                  <label htmlFor="time">Horário</label>
-                  <select
-                    id="time"
-                    disabled={!date || !service}
-                    {...form.register("time")}
-                    {...common("time")}
+
+                {/* Botões de confirmação e pagamento */}
+                <div className="mt-8 space-y-4">
+                  <Button
+                    type="submit"
+                    className="w-full bg-secondary hover:bg-secondary/90 text-black font-medium py-6 text-lg"
+                    disabled={appointmentForm.formState.isSubmitting}
                   >
-                    <option value="">Selecione um horário</option>
-                    {slots.map((time) => (
-                      <option key={time} value={time}>
-                        {time}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldError("time")}
-                  {date && service && slots.length === 0 && (
-                    <p className="field-hint">
-                      Sem horários para esta data. Escolha outro dia.
-                    </p>
-                  )}
+                    {appointmentForm.formState.isSubmitting
+                      ? "Agendando..."
+                      : "Confirmar Agendamento"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-red-600 text-red-500 hover:bg-red-600/10 font-medium py-6 text-lg flex items-center justify-center"
+                    onClick={redirectToWhatsAppPayment}
+                  >
+                    <svg
+                      className="w-5 h-5 mr-2"
+                      fill="currentColor"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 448 512"
+                    >
+                      <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/>
+                    </svg>
+                    Realizar Pagamento
+                  </Button>
                 </div>
-              </div>
-              <div className="form-field">
-                <label htmlFor="referredBy">
-                  Código de indicação <span>opcional</span>
-                </label>
-                <input
-                  id="referredBy"
-                  placeholder="Você recebeu um código?"
-                  {...form.register("referredBy")}
-                  {...common("referredBy")}
-                />
-                {fieldError("referredBy")}
-              </div>
-              <div className="form-field">
-                <label htmlFor="notes">
-                  Observações <span>opcional</span>
-                </label>
-                <textarea
-                  id="notes"
-                  rows={3}
-                  placeholder="Conte se há algo que gostaria que a equipe soubesse."
-                  {...form.register("notes")}
-                  {...common("notes")}
-                />
-                {fieldError("notes")}
-              </div>
-              <button
-                className="pill-button booking-submit"
-                type="submit"
-                disabled={blocked || form.formState.isSubmitting}
-              >
-                {form.formState.isSubmitting ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Enviando…
-                  </>
-                ) : (
-                  <>
-                    Confirmar Agendamento <ArrowUpRight size={18} />
-                  </>
-                )}
-              </button>
-            </fieldset>
-            <p className="booking-footnote">
-              Ao enviar, você autoriza a clínica a entrar em contato sobre esta
-              solicitação.
+              </form>
+            </Form>
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.2 }}
+          viewport={{ once: true }}
+        >
+          <div className="bg-[#252525] p-6 rounded-lg">
+            <h3 className="text-xl font-display mb-2">Endereço</h3>
+            <p className="text-gray-300">
+              R. Papa João XXIII, 608 - Liberdade
+              <br />
+              Campina Grande - PB, 58414-300
             </p>
-          </form>
-        </div>
+          </div>
+
+          <div className="bg-[#252525] p-6 rounded-lg">
+            <h3 className="text-xl font-display mb-2">
+              Horário de Funcionamento
+            </h3>
+            <p className="text-gray-300">
+              Segunda a Sexta:
+              <br />
+              8:30 - 21:00
+            </p>
+            <p className="text-gray-300">
+              Sabado e Domingo:
+              <br />
+              9:00 - 20:00
+            </p>
+          </div>
+
+          <div className="bg-[#252525] p-6 rounded-lg">
+            <h3 className="text-xl font-display mb-2">Contato</h3>
+            <p className="text-gray-300">
+              contato@clinicaexecutivas.com.br
+              <br />
+              +55 (83) 98110-1444
+            </p>
+          </div>
+        </motion.div>
       </div>
+
+      {/* Modal de código de indicação */}
       <Dialog
-        open={!!receipt}
+        open={isReferralModalOpen}
         onOpenChange={(open) => {
-          if (!open) setReceipt(null);
-        }}
-      >
-        <DialogContent className="receipt-dialog">
+          setIsReferralModalOpen(open);
+          // Se estiver fechando o modal, garantir que o formulário esteja totalmente resetado
+          if (!open) {
+            appointmentForm.reset({
+              clientName: "",
+              clientPhone: "",
+              service: "",
+              date: "",
+              time: "",
+              duration: 60,
+              notes: "",
+              referredBy: "",
+            });
+            appointmentForm.clearErrors();
+          }
+        }}>
+        <DialogContent className="sm:max-w-md bg-[#252525] text-white border-[#333]">
           <DialogHeader>
-            <div className="receipt-icon">
-              <Check />
-            </div>
-            <DialogTitle>Seu momento está mais perto.</DialogTitle>
-            <DialogDescription>
-              Recebemos sua solicitação. Nossa equipe entrará em contato para
-              confirmar.
+            <DialogTitle className="text-center text-2xl font-display">
+              Seu Código de Indicação
+            </DialogTitle>
+            <DialogDescription className="text-center text-gray-300">
+              Compartilhe este código com amigos e ganhe descontos!
             </DialogDescription>
           </DialogHeader>
-          {receipt?.code && (
-            <div className="receipt-code">
-              <p>Seu código de indicação</p>
-              <strong>{receipt.code}</strong>
-              <button
-                className="text-button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(receipt.code!);
-                    setCopied(true);
-                  } catch {
-                    toast({
-                      title: "Não foi possível copiar",
-                      description: "Selecione e copie o código manualmente.",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-              >
-                {copied ? <Check size={15} /> : <Copy size={15} />}{" "}
-                {copied ? "Copiado" : "Copiar código"}
-              </button>
+          <div className="flex flex-col items-center justify-center p-6">
+            <div className="bg-gradient-to-r from-red-800 to-red-600 p-6 rounded-lg mb-4 w-full max-w-xs">
+              <p className="text-center text-4xl font-bold tracking-wider">
+                {referralCode}
+              </p>
             </div>
-          )}
+            <p className="text-sm text-center mb-4 text-gray-300">
+              A cada 3 indicações que usarem seu código, você ganha um desconto
+              de R$50 em seu próximo atendimento.
+            </p>
+          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              variant="default"
+              className="bg-red-700 hover:bg-red-800"
+              onClick={copyReferralCode}
+            >
+              {isCopied ? (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Copiado!
+                </>
+              ) : (
+                <>
+                  <ClipboardCopy className="mr-2 h-4 w-4" />
+                  Copiar Código
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </section>
