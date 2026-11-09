@@ -1,5 +1,7 @@
 # Revisão de gaps — 9 de novembro de 2026
 
+Atualização: o [remodel e catálogo administrável](remodel.md) substitui a interface e as regras fixas descritas na primeira entrega abaixo. Contagem atual: 9 testes. O bundle inicial foi reduzido para aproximadamente 456 kB / 145 kB gzip, com login e painel carregados sob demanda; o aviso anterior de chunk acima de 500 kB foi eliminado.
+
 ## Corrigido nesta entrega
 
 - Telefone vazio/inválido, nome só com espaços, serviço inválido, data inexistente, data/horário no passado e horários fora do funcionamento. Validação compartilhada entre navegador e API; telefone com máscara é normalizado.

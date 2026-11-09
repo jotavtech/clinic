@@ -1,3 +1,14 @@
+import ServiceManager from "@/components/admin/ServiceManager";
+import SiteEditor from "@/components/admin/SiteEditor";
+import {
+  Leaf,
+  Users,
+  CalendarDays,
+  History,
+  BarChart3,
+  Settings2,
+  ArrowUpRight,
+} from "lucide-react";
 import { calendarDateKey, parseCalendarDate } from "@shared/booking";
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -5,16 +16,40 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { ImageUpload } from "@/components/ImageUpload";
-import { Loader2, Plus, Edit, Trash2, LogOut, Calendar as CalendarIcon, Clock, User, Phone, MapPin } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Edit,
+  Trash2,
+  LogOut,
+  Calendar as CalendarIcon,
+  Clock,
+  User,
+  Phone,
+  MapPin,
+} from "lucide-react";
 
 import { apiRequest, responseList } from "@/lib/api-request";
 
@@ -74,24 +109,32 @@ export default function Admin() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const [imageUploading, setImageUploading] = useState(false);
-  const [activeTab, setActiveTab] = useState("massagistas");
+  const [activeTab, setActiveTab] = useState("servicos");
   const [massagistaModalOpen, setMassagistaModalOpen] = useState(false);
   const [isEditingMassagista, setIsEditingMassagista] = useState(false);
-  const [currentMassagista, setCurrentMassagista] = useState<Massagista | null>(null);
+  const [currentMassagista, setCurrentMassagista] = useState<Massagista | null>(
+    null,
+  );
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [massagistaFormData, setMassagistaFormData] = useState<MassagistaFormData>({
-    nome: "",
-    descricao: "",
-    fotoUrl: "",
-    videoUrl: "",
-    suiteMaster: false,
-    ativa: true,
-  });
+  const [massagistaFormData, setMassagistaFormData] =
+    useState<MassagistaFormData>({
+      nome: "",
+      descricao: "",
+      fotoUrl: "",
+      videoUrl: "",
+      suiteMaster: false,
+      ativa: true,
+    });
 
   // Buscar todas as massagistas
-  const { data: massagistas = [], isLoading: isLoadingMassagistas, isError: massagistasError, refetch: refetchMassagistas } = useQuery({
+  const {
+    data: massagistas = [],
+    isLoading: isLoadingMassagistas,
+    isError: massagistasError,
+    refetch: refetchMassagistas,
+  } = useQuery({
     queryKey: ["/api/massagistas"],
     queryFn: () => apiRequest("GET", "/api/massagistas"),
     enabled: isAuthenticated,
@@ -102,7 +145,12 @@ export default function Admin() {
   });
 
   // Buscar todos os agendamentos
-  const { data: appointments = [], isLoading: isLoadingAppointments, isError: appointmentsError, refetch: refetchAppointments } = useQuery({
+  const {
+    data: appointments = [],
+    isLoading: isLoadingAppointments,
+    isError: appointmentsError,
+    refetch: refetchAppointments,
+  } = useQuery({
     queryKey: ["/api/appointments"],
     queryFn: () => apiRequest("GET", "/api/appointments"),
     enabled: isAuthenticated,
@@ -114,54 +162,66 @@ export default function Admin() {
 
   // Calcular estatísticas mensais
   const monthlyStats: MonthlyStats[] = React.useMemo(() => {
-    const grouped = appointments.reduce((acc: Record<string, Appointment[]>, appointment) => {
-      const date = new Date(appointment.createdAt);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthName = date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'long' });
-      
-      if (!acc[monthName]) {
-        acc[monthName] = [];
-      }
-      acc[monthName].push(appointment);
-      return acc;
-    }, {});
+    const grouped = appointments.reduce(
+      (acc: Record<string, Appointment[]>, appointment) => {
+        const date = new Date(appointment.createdAt);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        const monthName = date.toLocaleDateString("pt-BR", {
+          year: "numeric",
+          month: "long",
+        });
+
+        if (!acc[monthName]) {
+          acc[monthName] = [];
+        }
+        acc[monthName].push(appointment);
+        return acc;
+      },
+      {},
+    );
 
     return Object.entries(grouped)
       .map(([month, appointments]) => ({
         month,
         count: appointments.length,
-        appointments
+        appointments,
       }))
       .sort((a, b) => b.count - a.count);
   }, [appointments]);
 
   // Calcular estatísticas de clientes
   const clientStats: ClientStats[] = React.useMemo(() => {
-    const grouped = appointments.reduce((acc: Record<string, Appointment[]>, appointment) => {
-      const key = `${appointment.clientName}-${appointment.clientPhone}`;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(appointment);
-      return acc;
-    }, {});
+    const grouped = appointments.reduce(
+      (acc: Record<string, Appointment[]>, appointment) => {
+        const key = `${appointment.clientName}-${appointment.clientPhone}`;
+        if (!acc[key]) {
+          acc[key] = [];
+        }
+        acc[key].push(appointment);
+        return acc;
+      },
+      {},
+    );
 
     return Object.entries(grouped)
       .map(([key, appointments]) => ({
         clientName: appointments[0].clientName,
         clientPhone: appointments[0].clientPhone,
         count: appointments.length,
-        appointments
+        appointments,
       }))
       .sort((a, b) => b.count - a.count);
   }, [appointments]);
 
   const formatDate = (dateString: string) => {
-    return parseCalendarDate(dateString)?.toLocaleDateString('pt-BR') || 'Data indisponível';
+    return (
+      parseCalendarDate(dateString)?.toLocaleDateString("pt-BR") ||
+      "Data indisponível"
+    );
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('pt-BR');
+    return new Date(dateString).toLocaleString("pt-BR");
   };
 
   const formatCalendarDate = (date: Date) => {
@@ -174,41 +234,36 @@ export default function Admin() {
 
   // Filtrar agendamentos pela data selecionada
   const appointmentsForSelectedDate = React.useMemo(() => {
-    return appointments.filter(appointment => 
-      isSameDate(appointment.date, selectedDate)
+    return appointments.filter((appointment) =>
+      isSameDate(appointment.date, selectedDate),
     );
   }, [appointments, selectedDate]);
 
   // Obter datas que têm agendamentos para destacar no calendário
   const datesWithAppointments = React.useMemo(() => {
     const dates = new Set<string>();
-    appointments.forEach(appointment => {
+    appointments.forEach((appointment) => {
       if (parseCalendarDate(appointment.date)) dates.add(appointment.date);
     });
-    return Array.from(dates).map(dateStr => parseCalendarDate(dateStr)!);
+    return Array.from(dates).map((dateStr) => parseCalendarDate(dateStr)!);
   }, [appointments]);
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { variant: any; label: string }> = {
-      'agendado': { variant: 'default', label: 'Agendado' },
-      'confirmado': { variant: 'default', label: 'Confirmado' },
-      'realizado': { variant: 'default', label: 'Realizado' },
-      'cancelado': { variant: 'destructive', label: 'Cancelado' },
+      agendado: { variant: "default", label: "Agendado" },
+      confirmado: { variant: "default", label: "Confirmado" },
+      realizado: { variant: "default", label: "Realizado" },
+      cancelado: { variant: "destructive", label: "Cancelado" },
     };
-    
-    const statusInfo = statusMap[status] || { variant: 'secondary', label: status };
+
+    const statusInfo = statusMap[status] || {
+      variant: "secondary",
+      label: status,
+    };
     return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
   };
 
-  const getServiceLabel = (service: string) => {
-    const serviceMap: Record<string, string> = {
-      'suite-padrao': 'Suíte Padrão',
-      'suite-master': 'Suíte Master',
-      'massagem-relaxante': 'Massagem Relaxante',
-      'massagem-tantrica': 'Massagem Tântrica',
-    };
-    return serviceMap[service] || service;
-  };
+  const getServiceLabel = (service: string) => service;
 
   // Redirecionar para login se não estiver autenticado
   React.useEffect(() => {
@@ -230,7 +285,10 @@ export default function Admin() {
     }
   };
 
-  const handleMassagistaFormChange = (field: keyof MassagistaFormData, value: string | boolean) => {
+  const handleMassagistaFormChange = (
+    field: keyof MassagistaFormData,
+    value: string | boolean,
+  ) => {
     setMassagistaFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -286,7 +344,10 @@ export default function Admin() {
 
   // Atualizar massagista
   const updateMassagistaMutation = useMutation({
-    mutationFn: (data: { id: number; massagista: Partial<MassagistaFormData> }) => {
+    mutationFn: (data: {
+      id: number;
+      massagista: Partial<MassagistaFormData>;
+    }) => {
       return apiRequest("PUT", `/api/massagistas/${data.id}`, data.massagista);
     },
     onSuccess: async () => {
@@ -349,19 +410,34 @@ export default function Admin() {
   });
 
   const handleDeleteAppointment = (appointment: Appointment) => {
-    if (window.confirm(
-      `Tem certeza que deseja excluir o agendamento de ${appointment.clientName} para ${formatDate(appointment.date)} às ${appointment.time}?`
-    )) {
+    if (
+      window.confirm(
+        `Tem certeza que deseja excluir o agendamento de ${appointment.clientName} para ${formatDate(appointment.date)} às ${appointment.time}?`,
+      )
+    ) {
       deleteAppointmentMutation.mutate(appointment.id);
     }
   };
 
   const handleMassagistaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (imageUploading || createMassagistaMutation.isPending || updateMassagistaMutation.isPending) return;
-    if (!massagistaFormData.nome.trim() || !massagistaFormData.descricao.trim() || !massagistaFormData.fotoUrl) {
-      toast({ title: "Dados incompletos", description: "Preencha nome, descrição e foto da profissional.", variant: "destructive" });
+
+    if (
+      imageUploading ||
+      createMassagistaMutation.isPending ||
+      updateMassagistaMutation.isPending
+    )
+      return;
+    if (
+      !massagistaFormData.nome.trim() ||
+      !massagistaFormData.descricao.trim() ||
+      !massagistaFormData.fotoUrl
+    ) {
+      toast({
+        title: "Dados incompletos",
+        description: "Preencha nome, descrição e foto da profissional.",
+        variant: "destructive",
+      });
       return;
     }
     if (isEditingMassagista && currentMassagista) {
@@ -387,47 +463,109 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-wrap gap-4 justify-between items-center">
+    <div className="admin-workspace">
+      <div className="admin-shell">
+        <div className="admin-topbar">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Painel Administrativo</h1>
-            <p className="text-gray-600">Gerencie massagistas, agendamentos e muito mais</p>
+            <span className="eyebrow">Clínica / Gestão</span>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Painel Administrativo
+            </h1>
+            <p className="text-gray-600">
+              Tudo o que você precisa para cuidar da sua clínica.
+            </p>
           </div>
-          <Button onClick={handleLogout} variant="outline">
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline">
+              <a href="/" target="_blank" rel="noreferrer">
+                Ver site <ArrowUpRight size={14} className="ml-2" />
+              </a>
+            </Button>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sair
+            </Button>
+          </div>
         </div>
 
         {(massagistasError || appointmentsError) && (
-          <div role="alert" className="mb-4 rounded border border-red-300 bg-red-50 p-4 text-red-800">
-            Não foi possível carregar {massagistasError ? "as profissionais" : "os agendamentos"}. Os dados abaixo podem estar incompletos.
-            <Button variant="outline" className="ml-2" onClick={() => { if (massagistasError) void refetchMassagistas(); if (appointmentsError) void refetchAppointments(); }}>Tentar novamente</Button>
+          <div
+            role="alert"
+            className="mb-4 rounded border border-red-300 bg-red-50 p-4 text-red-800"
+          >
+            Não foi possível carregar{" "}
+            {massagistasError ? "as profissionais" : "os agendamentos"}. Os
+            dados abaixo podem estar incompletos.
+            <Button
+              variant="outline"
+              className="ml-2"
+              onClick={() => {
+                if (massagistasError) void refetchMassagistas();
+                if (appointmentsError) void refetchAppointments();
+              }}
+            >
+              Tentar novamente
+            </Button>
           </div>
         )}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
-            <TabsTrigger value="massagistas">Massagistas</TabsTrigger>
-            <TabsTrigger value="agendamentos">Agendamentos</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
-            <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="admin-tabs"
+        >
+          <TabsList className="admin-navigation">
+            <TabsTrigger value="servicos">
+              <Leaf size={17} />
+              Serviços
+            </TabsTrigger>
+            <TabsTrigger value="massagistas">
+              <Users size={17} />
+              Profissionais
+            </TabsTrigger>
+            <TabsTrigger value="agendamentos">
+              <CalendarDays size={17} />
+              Agendamentos
+            </TabsTrigger>
+            <TabsTrigger value="historico">
+              <History size={17} />
+              Histórico
+            </TabsTrigger>
+            <TabsTrigger value="estatisticas">
+              <BarChart3 size={17} />
+              Estatísticas
+            </TabsTrigger>
+            <TabsTrigger value="conteudo">
+              <Settings2 size={17} />
+              Conteúdo do site
+            </TabsTrigger>
           </TabsList>
+          <TabsContent value="servicos">
+            <ServiceManager />
+          </TabsContent>
+          <TabsContent value="conteudo">
+            <SiteEditor />
+          </TabsContent>
 
           <TabsContent value="massagistas" className="space-y-6">
             <Card>
               <CardHeader className="flex flex-wrap gap-3 items-center justify-between">
                 <div>
-                  <CardTitle>Massagistas</CardTitle>
-                  <CardDescription>Gerencie as massagistas da clínica</CardDescription>
+                  <CardTitle>Profissionais</CardTitle>
+                  <CardDescription>
+                    Cadastre, edite e publique os perfis da equipe.
+                  </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => refetchMassagistas()} variant="outline" size="sm">
+                  <Button
+                    onClick={() => refetchMassagistas()}
+                    variant="outline"
+                    size="sm"
+                  >
                     🔄 Atualizar
                   </Button>
                   <Button onClick={handleOpenCreateMassagistaModal}>
                     <Plus className="mr-2 h-4 w-4" />
-                    Nova Massagista
+                    Nova profissional
                   </Button>
                 </div>
               </CardHeader>
@@ -460,22 +598,29 @@ export default function Admin() {
                         </div>
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold text-lg">{massagista.nome}</h3>
+                            <h3 className="font-semibold text-lg">
+                              {massagista.nome}
+                            </h3>
                             <div className="flex gap-1">
-                              {massagista.suiteMaster && (
-                                <Badge variant="secondary">Master</Badge>
-                              )}
-                              <Badge variant={massagista.ativa ? "default" : "secondary"}>
+                              <Badge
+                                variant={
+                                  massagista.ativa ? "default" : "secondary"
+                                }
+                              >
                                 {massagista.ativa ? "Ativa" : "Inativa"}
                               </Badge>
                             </div>
                           </div>
-                          <p className="text-gray-600 text-sm mb-4">{massagista.descricao}</p>
+                          <p className="text-gray-600 text-sm mb-4">
+                            {massagista.descricao}
+                          </p>
                           <div className="flex justify-between">
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleOpenEditMassagistaModal(massagista)}
+                              onClick={() =>
+                                handleOpenEditMassagistaModal(massagista)
+                              }
                             >
                               <Edit className="mr-1 h-3 w-3" />
                               Editar
@@ -485,7 +630,14 @@ export default function Admin() {
                               size="sm"
                               disabled={deleteMassagistaMutation.isPending}
                               onClick={() => {
-                                if (window.confirm(`Excluir a profissional ${massagista.nome}?`)) deleteMassagistaMutation.mutate(massagista.id);
+                                if (
+                                  window.confirm(
+                                    `Excluir a profissional ${massagista.nome}?`,
+                                  )
+                                )
+                                  deleteMassagistaMutation.mutate(
+                                    massagista.id,
+                                  );
                               }}
                             >
                               <Trash2 className="mr-1 h-3 w-3" />
@@ -525,9 +677,9 @@ export default function Admin() {
                     }}
                     modifiersStyles={{
                       hasAppointments: {
-                        backgroundColor: 'hsl(var(--primary))',
-                        color: 'white',
-                        fontWeight: 'bold',
+                        backgroundColor: "hsl(var(--primary))",
+                        color: "white",
+                        fontWeight: "bold",
                       },
                     }}
                   />
@@ -548,26 +700,34 @@ export default function Admin() {
                 <CardHeader className="flex flex-wrap gap-3 items-center justify-between">
                   <div>
                     <CardTitle>
-                      Agendamentos para {selectedDate.toLocaleDateString('pt-BR', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
+                      Agendamentos para{" "}
+                      {selectedDate.toLocaleDateString("pt-BR", {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
                       })}
                     </CardTitle>
                     <CardDescription>
-                      {appointmentsForSelectedDate.length} agendamento{appointmentsForSelectedDate.length !== 1 ? 's' : ''} encontrado{appointmentsForSelectedDate.length !== 1 ? 's' : ''}
+                      {appointmentsForSelectedDate.length} agendamento
+                      {appointmentsForSelectedDate.length !== 1 ? "s" : ""}{" "}
+                      encontrado
+                      {appointmentsForSelectedDate.length !== 1 ? "s" : ""}
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      onClick={() => setSelectedDate(new Date())} 
-                      variant="outline" 
+                    <Button
+                      onClick={() => setSelectedDate(new Date())}
+                      variant="outline"
                       size="sm"
                     >
                       Hoje
                     </Button>
-                    <Button onClick={() => refetchAppointments()} variant="outline" size="sm">
+                    <Button
+                      onClick={() => refetchAppointments()}
+                      variant="outline"
+                      size="sm"
+                    >
                       🔄 Atualizar
                     </Button>
                   </div>
@@ -581,7 +741,9 @@ export default function Admin() {
                   ) : appointmentsForSelectedDate.length === 0 ? (
                     <div className="text-center text-gray-500 p-8">
                       <CalendarIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-medium mb-2">Nenhum agendamento</h3>
+                      <h3 className="text-lg font-medium mb-2">
+                        Nenhum agendamento
+                      </h3>
                       <p className="text-sm">
                         Não há agendamentos para esta data.
                       </p>
@@ -591,65 +753,83 @@ export default function Admin() {
                       {appointmentsForSelectedDate
                         .sort((a, b) => a.time.localeCompare(b.time))
                         .map((appointment) => (
-                        <Card key={appointment.id} className="p-4 border-l-4 border-l-primary">
-                          <div className="flex justify-between items-start">
-                            <div className="space-y-2 flex-1">
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-gray-500" />
-                                <span className="font-semibold text-lg">{appointment.clientName}</span>
-                                {getStatusBadge(appointment.status)}
+                          <Card
+                            key={appointment.id}
+                            className="p-4 border-l-4 border-l-primary"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="space-y-2 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-gray-500" />
+                                  <span className="font-semibold text-lg">
+                                    {appointment.clientName}
+                                  </span>
+                                  {getStatusBadge(appointment.status)}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                                  <div className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3" />
+                                    {appointment.clientPhone}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    <span className="font-medium">
+                                      {appointment.time}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {getServiceLabel(appointment.service)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Duração: {appointment.duration} min
+                                  </div>
+                                </div>
+                                {appointment.notes && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                                    <strong>Observações:</strong>{" "}
+                                    {appointment.notes}
+                                  </div>
+                                )}
+                                {appointment.referralCode && (
+                                  <div className="flex items-center gap-1 text-sm text-blue-600">
+                                    <span>
+                                      🎟️ Código de indicação:{" "}
+                                      <strong>
+                                        {appointment.referralCode}
+                                      </strong>
+                                    </span>
+                                  </div>
+                                )}
                               </div>
-                              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                                <div className="flex items-center gap-1">
-                                  <Phone className="h-3 w-3" />
-                                  {appointment.clientPhone}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span className="font-medium">{appointment.time}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {getServiceLabel(appointment.service)}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Duração: {appointment.duration} min
+                              <div className="text-xs text-gray-400 ml-4">
+                                <div>ID: #{appointment.id}</div>
+                                <div>
+                                  Criado:{" "}
+                                  {formatDateTime(appointment.createdAt)}
                                 </div>
                               </div>
-                              {appointment.notes && (
-                                <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-                                  <strong>Observações:</strong> {appointment.notes}
-                                </div>
-                              )}
-                              {appointment.referralCode && (
-                                <div className="flex items-center gap-1 text-sm text-blue-600">
-                                  <span>🎟️ Código de indicação: <strong>{appointment.referralCode}</strong></span>
-                                </div>
-                              )}
                             </div>
-                            <div className="text-xs text-gray-400 ml-4">
-                              <div>ID: #{appointment.id}</div>
-                              <div>Criado: {formatDateTime(appointment.createdAt)}</div>
-                            </div>
-                          </div>
-                          <div className="flex justify-end">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={deleteAppointmentMutation.isPending}
-                              onClick={() => handleDeleteAppointment(appointment)}
+                            <div className="flex justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={deleteAppointmentMutation.isPending}
+                                onClick={() =>
+                                  handleDeleteAppointment(appointment)
+                                }
 
-                              className="text-xs text-red-600 hover:text-red-700"
-                            >
-                              {deleteAppointmentMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3 w-3" />
-                              )}
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
+                                className="text-xs text-red-600 hover:text-red-700"
+                              >
+                                {deleteAppointmentMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
                     </div>
                   )}
                 </CardContent>
@@ -660,7 +840,9 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <CardTitle>Todos os Agendamentos</CardTitle>
-                <CardDescription>Visão geral de todos os agendamentos da clínica</CardDescription>
+                <CardDescription>
+                  Visão geral de todos os agendamentos da clínica
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {appointments.length === 0 ? (
@@ -670,45 +852,66 @@ export default function Admin() {
                 ) : (
                   <div className="space-y-3">
                     {appointments
-                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .sort(
+                        (a, b) =>
+                          new Date(b.createdAt).getTime() -
+                          new Date(a.createdAt).getTime(),
+                      )
                       .slice(0, 10)
                       .map((appointment) => (
-                      <div key={appointment.id} className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{appointment.clientName}</span>
-                            <div className="flex items-center gap-4 text-xs text-gray-600">
-                              <span>{formatDate(appointment.date)} às {appointment.time}</span>
-                              <span>{getServiceLabel(appointment.service)}</span>
+                        <div
+                          key={appointment.id}
+                          className="flex justify-between items-center p-3 bg-gray-50 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {appointment.clientName}
+                              </span>
+                              <div className="flex items-center gap-4 text-xs text-gray-600">
+                                <span>
+                                  {formatDate(appointment.date)} às{" "}
+                                  {appointment.time}
+                                </span>
+                                <span>
+                                  {getServiceLabel(appointment.service)}
+                                </span>
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(appointment.status)}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setSelectedDate(
+                                  parseCalendarDate(appointment.date) ||
+                                    new Date(),
+                                )
+                              }
+                              className="text-xs"
+                            >
+                              Ver dia
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={deleteAppointmentMutation.isPending}
+                              onClick={() =>
+                                handleDeleteAppointment(appointment)
+                              }
+                              className="text-xs text-red-600 hover:text-red-700"
+                            >
+                              {deleteAppointmentMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {getStatusBadge(appointment.status)}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedDate(parseCalendarDate(appointment.date) || new Date())}
-                            className="text-xs"
-                          >
-                            Ver dia
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={deleteAppointmentMutation.isPending}
-                              onClick={() => handleDeleteAppointment(appointment)}
-                            className="text-xs text-red-600 hover:text-red-700"
-                          >
-                            {deleteAppointmentMutation.isPending ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                     {appointments.length > 10 && (
                       <div className="text-center text-sm text-gray-500 pt-2">
                         Mostrando 10 de {appointments.length} agendamentos
@@ -724,7 +927,9 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <CardTitle>Histórico por Mês</CardTitle>
-                <CardDescription>Agendamentos organizados por mês</CardDescription>
+                <CardDescription>
+                  Agendamentos organizados por mês
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {monthlyStats.length === 0 ? (
@@ -736,16 +941,26 @@ export default function Admin() {
                     {monthlyStats.map((stat) => (
                       <Card key={stat.month} className="p-4">
                         <div className="flex justify-between items-center mb-4">
-                          <h3 className="text-lg font-semibold capitalize">{stat.month}</h3>
-                          <Badge variant="outline">{stat.count} agendamentos</Badge>
+                          <h3 className="text-lg font-semibold capitalize">
+                            {stat.month}
+                          </h3>
+                          <Badge variant="outline">
+                            {stat.count} agendamentos
+                          </Badge>
                         </div>
                         <div className="space-y-2">
                           {stat.appointments.map((appointment) => (
-                            <div key={appointment.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <div
+                              key={appointment.id}
+                              className="flex justify-between items-center p-2 bg-gray-50 rounded"
+                            >
                               <div>
-                                <span className="font-medium">{appointment.clientName}</span>
+                                <span className="font-medium">
+                                  {appointment.clientName}
+                                </span>
                                 <span className="text-sm text-gray-600 ml-2">
-                                  {formatDate(appointment.date)} às {appointment.time}
+                                  {formatDate(appointment.date)} às{" "}
+                                  {appointment.time}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
@@ -754,7 +969,9 @@ export default function Admin() {
                                   variant="ghost"
                                   size="sm"
                                   disabled={deleteAppointmentMutation.isPending}
-                              onClick={() => handleDeleteAppointment(appointment)}
+                                  onClick={() =>
+                                    handleDeleteAppointment(appointment)
+                                  }
 
                                   className="text-xs text-red-600 hover:text-red-700"
                                 >
@@ -795,7 +1012,9 @@ export default function Admin() {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-center text-gray-500">Dados insuficientes</p>
+                    <p className="text-center text-gray-500">
+                      Dados insuficientes
+                    </p>
                   )}
                 </CardContent>
               </Card>
@@ -804,7 +1023,9 @@ export default function Admin() {
               <Card>
                 <CardHeader>
                   <CardTitle>Cliente Mais Frequente</CardTitle>
-                  <CardDescription>Quem mais utiliza nossos serviços</CardDescription>
+                  <CardDescription>
+                    Quem mais utiliza nossos serviços
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {clientStats.length > 0 ? (
@@ -820,7 +1041,9 @@ export default function Admin() {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-center text-gray-500">Dados insuficientes</p>
+                    <p className="text-center text-gray-500">
+                      Dados insuficientes
+                    </p>
                   )}
                 </CardContent>
               </Card>
@@ -830,7 +1053,9 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <CardTitle>Ranking de Clientes</CardTitle>
-                <CardDescription>Clientes ordenados por frequência</CardDescription>
+                <CardDescription>
+                  Clientes ordenados por frequência
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {clientStats.length === 0 ? (
@@ -840,18 +1065,24 @@ export default function Admin() {
                 ) : (
                   <div className="space-y-2">
                     {clientStats.slice(0, 10).map((client, index) => (
-                      <div key={`${client.clientName}-${client.clientPhone}`} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                      <div
+                        key={`${client.clientName}-${client.clientPhone}`}
+                        className="flex justify-between items-center p-3 bg-gray-50 rounded"
+                      >
                         <div className="flex items-center gap-3">
                           <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
                             {index + 1}
                           </span>
                           <div>
                             <p className="font-medium">{client.clientName}</p>
-                            <p className="text-xs text-gray-600">{client.clientPhone}</p>
+                            <p className="text-xs text-gray-600">
+                              {client.clientPhone}
+                            </p>
                           </div>
                         </div>
                         <Badge variant="outline">
-                          {client.count} agendamento{client.count > 1 ? 's' : ''}
+                          {client.count} agendamento
+                          {client.count > 1 ? "s" : ""}
                         </Badge>
                       </div>
                     ))}
@@ -867,7 +1098,9 @@ export default function Admin() {
                   <CardTitle>Total de Agendamentos</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-bold text-primary">{appointments.length}</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {appointments.length}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -876,7 +1109,9 @@ export default function Admin() {
                   <CardTitle>Clientes Únicos</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-bold text-primary">{clientStats.length}</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {clientStats.length}
+                  </p>
                 </CardContent>
               </Card>
 
@@ -885,7 +1120,9 @@ export default function Admin() {
                   <CardTitle>Meses Ativos</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-bold text-primary">{monthlyStats.length}</p>
+                  <p className="text-3xl font-bold text-primary">
+                    {monthlyStats.length}
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -893,11 +1130,16 @@ export default function Admin() {
         </Tabs>
 
         {/* Modal de Criação/Edição de Massagista */}
-        <Dialog open={massagistaModalOpen} onOpenChange={setMassagistaModalOpen}>
+        <Dialog
+          open={massagistaModalOpen}
+          onOpenChange={setMassagistaModalOpen}
+        >
           <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {isEditingMassagista ? "Editar Massagista" : "Nova Massagista"}
+                {isEditingMassagista
+                  ? "Editar profissional"
+                  : "Nova profissional"}
               </DialogTitle>
               <DialogDescription>
                 {isEditingMassagista
@@ -913,7 +1155,9 @@ export default function Admin() {
                   <Input
                     id="nome"
                     value={massagistaFormData.nome}
-                    onChange={(e) => handleMassagistaFormChange("nome", e.target.value)}
+                    onChange={(e) =>
+                      handleMassagistaFormChange("nome", e.target.value)
+                    }
                     required
                   />
                 </div>
@@ -923,14 +1167,16 @@ export default function Admin() {
                   <Textarea
                     id="descricao"
                     value={massagistaFormData.descricao}
-                    onChange={(e) => handleMassagistaFormChange("descricao", e.target.value)}
+                    onChange={(e) =>
+                      handleMassagistaFormChange("descricao", e.target.value)
+                    }
                     rows={3}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Foto da Massagista</Label>
+                  <Label>Foto da profissional</Label>
                   <ImageUpload
                     onUploadingChange={setImageUploading}
                     onImageUploaded={(imageUrl) =>
@@ -947,23 +1193,10 @@ export default function Admin() {
                     type="url"
                     placeholder="https://exemplo.com/video.mp4"
                     value={massagistaFormData.videoUrl}
-                    onChange={(e) => handleMassagistaFormChange("videoUrl", e.target.value)}
+                    onChange={(e) =>
+                      handleMassagistaFormChange("videoUrl", e.target.value)
+                    }
                   />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="suiteMaster" className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="suiteMaster"
-                      checked={massagistaFormData.suiteMaster}
-                      onChange={(e) =>
-                        handleMassagistaFormChange("suiteMaster", e.target.checked)
-                      }
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    Suíte Master
-                  </Label>
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -972,7 +1205,9 @@ export default function Admin() {
                       type="checkbox"
                       id="ativa"
                       checked={massagistaFormData.ativa}
-                      onChange={(e) => handleMassagistaFormChange("ativa", e.target.checked)}
+                      onChange={(e) =>
+                        handleMassagistaFormChange("ativa", e.target.checked)
+                      }
                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                     Ativa
@@ -991,7 +1226,8 @@ export default function Admin() {
                 <Button
                   type="submit"
                   disabled={
-                    imageUploading || createMassagistaMutation.isPending ||
+                    imageUploading ||
+                    createMassagistaMutation.isPending ||
                     updateMassagistaMutation.isPending
                   }
                 >
@@ -1008,4 +1244,4 @@ export default function Admin() {
       </div>
     </div>
   );
-} 
+}

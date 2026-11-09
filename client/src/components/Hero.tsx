@@ -1,59 +1,86 @@
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-
+import { ArrowDown, ArrowUpRight, Leaf, Sun } from "lucide-react";
+import { useSiteSettings } from "@/lib/catalog";
 export default function Hero() {
+  const { settings } = useSiteSettings();
   return (
-    <section id="inicio" className="relative h-[90vh] flex items-center">
-      {/* Background image with overlay */}
-      {/* 
-        Para substituir esta imagem, siga estas etapas:
-        1. Faça upload de uma imagem para um serviço como Imgur, ImgBB, Cloudinary, etc.
-        2. Copie o URL direto da imagem
-        3. Cole a URL no atributo src abaixo
-        4. Atualize o texto alternativo (alt) se necessário 
-      */}
-      <div className="absolute inset-0 z-0">
-        <img
-          src="https://i.ibb.co/gX4FyRH/maya2.jpg" // Imagem de Maya
-          alt="Maya - Clínica Executivas"
-          className="w-full h-full object-cover object-top"
-        />
-        <div className="absolute inset-0 bg-primary bg-opacity-50"></div>
-      </div>
-
-      {/* Content */}
-      <div className="container mx-auto px-4 relative z-10 text-white">
-        <motion.div
-          className="max-w-2xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <h2 className="font-display text-4xl md:text-5xl lg:text-6xl mb-4 leading-tight">
-            Experimente o melhor em massagem terapêutica
-          </h2>
-          <p className="text-lg md:text-xl mb-8 text-gray-100">
-            Cuidamos do seu bem-estar com técnicas exclusivas e profissionais
-            qualificados.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Button
-              asChild
-              variant="default"
-              className="bg-secondary hover:bg-opacity-90 text-white transition-all px-6 py-6 rounded font-accent font-medium"
-            >
-              <a href="#servicos">Nossos Serviços</a>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="hover:bg-white hover:text-primary text-black transition-all px-6 py-6 rounded font-accent font-medium shadow-md"
-            >
-              <a href="#contato">Agende uma Sessão</a>
-            </Button>
+    <section id="inicio" className="hero-section">
+      <div className="site-shell hero-grid">
+        <div className="hero-copy">
+          <div className="eyebrow">
+            <span /> {settings.tagline || "Bem-estar no seu tempo"}
           </div>
-        </motion.div>
+          <h1>{settings.heroTitle}</h1>
+          <p>{settings.heroDescription}</p>
+          <div className="hero-actions">
+            <a href="#contato" className="pill-button">
+              Reserve seu momento <ArrowUpRight size={19} />
+            </a>
+            <a href="#servicos" className="text-button">
+              Explore os serviços <ArrowDown size={16} />
+            </a>
+          </div>
+          <div className="hero-note">
+            <span>
+              <Leaf size={17} /> Cuidado com você
+            </span>
+            <i />
+            <span>
+              <Sun size={17} /> Uma pausa na rotina
+            </span>
+          </div>
+        </div>
+        <div className="hero-visual">
+          <img
+            src={settings.heroImageUrl || "/wellness.svg"}
+            alt="Ambiente ilustrativo de tranquilidade e bem-estar"
+            onError={(event) => {
+              event.currentTarget.onerror = null;
+              event.currentTarget.src = "/wellness.svg";
+            }}
+          />
+          <div className="hero-image-label">
+            <span className="status-dot" /> Tempo para respirar. Espaço para
+            você.
+          </div>
+          <div className="hero-stamp">
+            <Flower />{" "}
+            <span>
+              um momento
+              <br />
+              só seu
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="site-shell hero-bottom">
+        <span>Menos pressa. Mais presença.</span>
+        <a href="#sobre">
+          Conheça nosso espaço <ArrowDown size={14} />
+        </a>
       </div>
     </section>
+  );
+}
+function Flower() {
+  return (
+    <svg
+      width="26"
+      height="26"
+      viewBox="0 0 40 40"
+      fill="none"
+      aria-hidden="true"
+    >
+      {[0, 60, 120].map((angle) => (
+        <ellipse
+          key={angle}
+          cx="20"
+          cy="20"
+          rx="6"
+          ry="18"
+          stroke="currentColor"
+          transform={`rotate(${angle} 20 20)`}
+        />
+      ))}
+    </svg>
   );
 }

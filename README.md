@@ -2,6 +2,12 @@
 
 Site e painel administrativo em React, TypeScript e Express. O armazenamento ativo é Prisma com **MySQL**, conforme `prisma/schema.prisma`.
 
+## Site e painel administráveis
+
+A nova interface não contém pacotes ou preços fixos. Serviços, valores, duração e publicação são cadastrados no painel. Textos, imagens, contatos e horários ficam em **Conteúdo do site**. O catálogo começa vazio.
+
+**Instalações existentes precisam criar as tabelas novas antes de publicar esta versão.** Veja o SQL aditivo, o fluxo administrativo e a validação em [docs/remodel.md](docs/remodel.md). Não foi executada atualização no banco existente.
+
 ## Desenvolvimento
 
 Requer Node.js 20.19+ e uma base MySQL separada de produção.

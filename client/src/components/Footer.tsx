@@ -1,64 +1,52 @@
+import { Flower2, ArrowUpRight } from "lucide-react";
 import { Link } from "wouter";
-
+import { useSiteSettings } from "@/lib/catalog";
+import { whatsappLink } from "@shared/catalog";
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
-  
+  const { settings } = useSiteSettings();
   return (
-    <footer className="bg-primary text-white py-8">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+    <footer className="site-footer">
+      <div className="site-shell">
+        <div className="footer-main">
           <div>
-            <h3 className="text-xl font-display font-semibold mb-4">Clínica Executivas</h3>
-            <p className="mb-4">
-              Seu espaço de bem-estar e relaxamento em Campina Grande. Profissionais qualificados e 
-              ambiente acolhedor para cuidar de você.
-            </p>
+            <a href="#inicio" className="brand">
+              <Flower2 size={27} />
+              <span>{settings.brandName}</span>
+            </a>
+            <p>{settings.tagline}</p>
           </div>
-          
-          <div>
-            <h3 className="text-xl font-display font-semibold mb-4">Links Rápidos</h3>
-            <ul className="space-y-2">
-              <li><a href="#inicio" className="hover:text-secondary transition-colors">Início</a></li>
-              <li><a href="#sobre" className="hover:text-secondary transition-colors">Sobre Nós</a></li>
-              <li><a href="#servicos" className="hover:text-secondary transition-colors">Serviços</a></li>
-              <li><a href="#galeria" className="hover:text-secondary transition-colors">Galeria</a></li>
-              <li><a href="#depoimentos" className="hover:text-secondary transition-colors">Depoimentos</a></li>
-              <li><a href="#contato" className="hover:text-secondary transition-colors">Contato</a></li>
-            </ul>
+          <div className="footer-links">
+            <a href="#sobre">O espaço</a>
+            <a href="#servicos">Serviços</a>
+            <a href="#galeria">Equipe</a>
+            <a href="#contato">
+              Agendamento <ArrowUpRight size={14} />
+            </a>
           </div>
-          
-          <div>
-            <h3 className="text-xl font-display font-semibold mb-4">Contato</h3>
-            <ul className="space-y-2">
-              <li className="flex items-start">
-                <i className="fas fa-map-marker-alt mt-1 mr-2 text-secondary"></i>
-                <span>R. Papa João XXIII, 608 - Liberdade, Campina Grande - PB, 58414-300</span>
-              </li>
-              <li className="flex items-start">
-                <i className="fas fa-phone-alt mt-1 mr-2 text-secondary"></i>
-                <span>55 83 98110-1444</span>
-              </li>
-              <li className="flex items-start">
-                <i className="fas fa-envelope mt-1 mr-2 text-secondary"></i>
-                <span>contato@clinicaexecutivas.com.br</span>
-              </li>
-            </ul>
+          <div className="footer-contact">
+            {settings.address && <p>{settings.address}</p>}
+            {settings.email && (
+              <a href={`mailto:${settings.email}`}>{settings.email}</a>
+            )}
+            {settings.phone && (
+              <a
+                href={whatsappLink(settings.phone)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Fale com a clínica <ArrowUpRight size={14} />
+              </a>
+            )}
           </div>
         </div>
-        
-        <div className="border-t border-gray-700 pt-6 flex flex-col md:flex-row justify-between items-center">
-          <p>© {currentYear} Clínica Executivas. Todos os direitos reservados.</p>
-          <div className="flex space-x-4 mt-4 md:mt-0">
-            <a href="#" className="text-white hover:text-secondary transition-colors">
-              <i className="fab fa-facebook-f"></i>
-            </a>
-            <a href="#" className="text-white hover:text-secondary transition-colors">
-              <i className="fab fa-instagram"></i>
-            </a>
-            <a href="#" className="text-white hover:text-secondary transition-colors">
-              <i className="fab fa-whatsapp"></i>
-            </a>
-          </div>
+        <div className="footer-bottom">
+          <span>
+            © {new Date().getFullYear()} {settings.brandName}
+          </span>
+          <span>Seu bem-estar merece tempo.</span>
+          <Link href="/login">
+            Área administrativa <ArrowUpRight size={13} />
+          </Link>
         </div>
       </div>
     </footer>

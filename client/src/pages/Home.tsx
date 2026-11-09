@@ -1,3 +1,4 @@
+import { useSiteSettings } from "@/lib/catalog";
 import { Helmet } from "react-helmet";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
@@ -11,11 +12,17 @@ import Footer from "@/components/Footer";
 import FloatingWhatsAppButton from "@/components/FloatingWhatsAppButton";
 
 export default function Home() {
+  const { settings } = useSiteSettings();
   return (
     <>
       <Helmet>
-        <title>Clínica Executivas - Massagem Terapêutica em Campina Grande</title>
-        <meta name="description" content="Clínica Executivas oferece serviços de massagem terapêutica e relaxante em Campina Grande. Conheça nossos tratamentos exclusivos para seu bem-estar." />
+        <title>{settings.brandName} — Cuidado e bem-estar</title>
+        <meta name="description" content={settings.heroDescription} />
+        <meta
+          property="og:title"
+          content={`${settings.brandName} — Cuidado e bem-estar`}
+        />
+        <meta property="og:description" content={settings.heroDescription} />
       </Helmet>
 
       <div className="flex flex-col min-h-screen">
