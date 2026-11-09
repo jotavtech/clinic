@@ -31,7 +31,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ThemeProvider>
+        <ThemeProvider forcedTheme="light">
           <TooltipProvider>
             <Toaster />
             <Router />

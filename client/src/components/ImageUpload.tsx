@@ -1,4 +1,4 @@
-import React, { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import React, { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react';
 import { Upload, Image, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -7,17 +7,21 @@ interface ImageUploadProps {
   onImageUploaded: (imageUrl: string) => void;
   currentImageUrl?: string;
   className?: string;
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
-export function ImageUpload({ onImageUploaded, currentImageUrl, className }: ImageUploadProps) {
+export function ImageUpload({ onImageUploaded, currentImageUrl, className, onUploadingChange }: ImageUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(currentImageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const uploadingRef = useRef(false);
+  useEffect(() => { setPreviewImage(currentImageUrl || null); }, [currentImageUrl]);
 
   const uploadImage = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    if (uploadingRef.current) return;
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
       toast({
         title: "Erro",
         description: "Por favor, selecione apenas arquivos de imagem",
@@ -35,22 +39,27 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className }: Ima
       return;
     }
 
+    uploadingRef.current = true;
     setIsUploading(true);
+    onUploadingChange?.(true);
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
     try {
       const formData = new FormData();
       formData.append('image', file);
 
       const response = await fetch('/api/upload-image', {
         method: 'POST',
+        signal: controller.signal,
         body: formData,
         credentials: 'include', // Para incluir cookies de sessão
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => null);
 
-      if (!response.ok) {
-        throw new Error(result.message || 'Erro ao fazer upload');
+      if (!response.ok || !result?.imageUrl) {
+        throw new Error(result?.message || 'Não foi possível enviar a imagem. Tente novamente.');
       }
 
       setPreviewImage(result.imageUrl);
@@ -64,11 +73,15 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className }: Ima
       console.error('Erro no upload:', error);
       toast({
         title: "Erro",
-        description: error instanceof Error ? error.message : "Erro ao fazer upload da imagem",
+        description: error instanceof Error && error.name === "AbortError" ? "O envio demorou para responder. Tente novamente." : error instanceof Error ? error.message : "Erro ao fazer upload da imagem",
         variant: "destructive",
       });
     } finally {
+      clearTimeout(timer);
+      uploadingRef.current = false;
       setIsUploading(false);
+      onUploadingChange?.(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -100,7 +113,7 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className }: Ima
   };
 
   const handleClick = () => {
-    fileInputRef.current?.click();
+    if (!uploadingRef.current) fileInputRef.current?.click();
   };
 
   const removeImage = () => {
@@ -123,11 +136,18 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className }: Ima
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleClick}
+        role="button" tabIndex={isUploading ? -1 : 0}
+        aria-label="Selecionar foto da profissional" aria-busy={isUploading}
+        onKeyDown={(event) => {
+          if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault(); handleClick();
+          }
+        }}
       >
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFileSelect}
           className="hidden"
         />
@@ -149,6 +169,7 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className }: Ima
               variant="destructive"
               size="sm"
               className="absolute top-2 right-2"
+              aria-label="Remover imagem"
               onClick={(e) => {
                 e.stopPropagation();
                 removeImage();
@@ -180,6 +201,7 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className }: Ima
             type="button"
             variant="ghost"
             size="sm"
+            disabled={isUploading}
             onClick={removeImage}
             className="text-green-600 hover:text-green-700"
           >

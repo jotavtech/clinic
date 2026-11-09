@@ -1,3 +1,4 @@
+import { ptBR } from "date-fns/locale"
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker } from "react-day-picker"
@@ -15,6 +16,8 @@ function Calendar({
 }: CalendarProps) {
   return (
     <DayPicker
+      locale={ptBR}
+      labels={{ labelNext: () => "Próximo mês", labelPrevious: () => "Mês anterior" }}
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{

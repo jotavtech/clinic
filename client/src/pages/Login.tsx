@@ -18,7 +18,7 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
+    if (!username.trim() || !password) {
       toast({
         title: "Erro",
         description: "Por favor, preencha todos os campos",
@@ -29,7 +29,7 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const success = await login(username, password);
+      const success = await login(username.trim(), password);
       if (success) {
         toast({
           title: "Sucesso",
@@ -46,7 +46,7 @@ export default function Login() {
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao fazer login",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao fazer login",
         variant: "destructive",
       });
     } finally {
@@ -55,7 +55,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
@@ -71,6 +71,7 @@ export default function Login() {
               <Label htmlFor="username">Usuário</Label>
               <Input
                 id="username"
+                autoComplete="username" required
                 placeholder="Digite seu nome de usuário"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -81,6 +82,7 @@ export default function Login() {
               <Label htmlFor="password">Senha</Label>
               <Input
                 id="password"
+                autoComplete="current-password" required
                 type="password"
                 placeholder="Digite sua senha"
                 value={password}

@@ -1,11 +1,13 @@
 import express, { type Request, Response, NextFunction } from "express";
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContactFormSchema, insertAppointmentSchema, insertMassagistaSchema, insertReferralSchema } from "@shared/schema";
+import { insertContactFormSchema, insertAppointmentSchema, insertMassagistaSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import session from "express-session";
+import bcrypt from "bcrypt";
+import { randomBytes } from "node:crypto";
+import { bookingSchema, bookingFields } from "@shared/booking";
 import { upload, uploadToCloudinary } from "./services/uploadService";
 
 // Estender a interface Session do express-session
@@ -26,13 +28,16 @@ const isAuthenticated = (req: Request, res: Response, next: NextFunction) => {
 };
 
 export async function registerRoutes(app: Express): Promise<void> {
+  const production = process.env.NODE_ENV === "production";
+  if (production && !process.env.SESSION_SECRET) throw new Error("Configure SESSION_SECRET em produção.");
+  if (production) app.set("trust proxy", 1);
   // Configurar sessões
   app.use(session({
-    secret: 'clinica-executivas-secret',
-    resave: true,
-    saveUninitialized: true,
+    secret: process.env.SESSION_SECRET || randomBytes(32).toString("hex"),
+    resave: false,
+    saveUninitialized: false,
     cookie: { 
-      secure: false, // Desabilitar secure para permitir cookies em HTTP
+      secure: production,
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 horas
       sameSite: 'lax' // Ajuda com questões de CORS
@@ -45,26 +50,28 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Rota de login
   apiRouter.post("/login", async (req: Request, res: Response) => {
     const { username, password } = req.body;
-    
-    console.log(`Tentativa de login: Username: ${username}, Password: ${password}`);
+    if (typeof username !== "string" || typeof password !== "string" || !username.trim() || !password || Buffer.byteLength(password, "utf8") > 72) {
+      return res.status(400).json({ success: false, message: "Informe usuário e senha válidos." });
+    }
     
     try {
-      const user = await storage.getUserByUsername(username);
-      console.log('Usuário encontrado:', user);
-      
-      if (user && user.password === password) {
-        // Simplificado para fins de demonstração - em produção use hash
+      const user = await storage.getUserByUsername(username.trim());
+
+      const hashed = user && /^\$2[aby]\$/.test(user.password);
+      const valid = user && (hashed ? await bcrypt.compare(password, user.password) : user.password === password);
+      if (user && valid) {
+        // Upgrade legacy plaintext credentials after a successful login.
+        if (!hashed) await storage.updateUserPassword(user.id, await bcrypt.hash(password, 12));
+        await new Promise<void>((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
         req.session.isAuthenticated = true;
         req.session.userId = user.id;
-        console.log('Login realizado com sucesso. Session:', req.session);
+        await new Promise<void>((resolve, reject) => req.session.save(error => error ? reject(error) : resolve()));
         
         return res.status(200).json({
           success: true,
           message: "Login realizado com sucesso"
         });
       }
-      
-      console.log('Credenciais inválidas.');
       return res.status(401).json({
         success: false,
         message: "Credenciais inválidas"
@@ -80,7 +87,9 @@ export async function registerRoutes(app: Express): Promise<void> {
   
   // Rota de logout
   apiRouter.post("/logout", (req: Request, res: Response) => {
-    req.session.destroy(() => {
+    req.session.destroy((error) => {
+      if (error) return res.status(500).json({ success: false, message: "Não foi possível encerrar a sessão. Tente novamente." });
+      res.clearCookie("connect.sid");
       res.status(200).json({
         success: true,
         message: "Logout realizado com sucesso"
@@ -167,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Rota de agendamento (público - permite que clientes façam agendamentos)
   apiRouter.post("/appointments", async (req: Request, res: Response) => {
     try {
-      const data = insertAppointmentSchema.parse(req.body);
+      const data = { ...bookingSchema.parse(req.body), status: "agendado" };
       
       // Registramos quando o agendamento foi criado
       const timestamp = new Date().toISOString();
@@ -180,7 +189,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       };
       
       // Log para depuração
-      console.log("Criando agendamento:", appointmentData);
       
       const appointment = await storage.createAppointment(appointmentData);
       
@@ -193,7 +201,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (error) {
       if (error instanceof ZodError) {
         const validationError = fromZodError(error);
-        console.error("Erro de validação:", validationError);
+
         return res.status(400).json({ 
           success: false, 
           message: "Erro de validação", 
@@ -209,7 +217,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
   
-  apiRouter.get("/appointments", async (req: Request, res: Response) => {
+  apiRouter.get("/appointments", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const { date } = req.query;
       
@@ -233,10 +241,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
   
-  apiRouter.get("/appointments/:id", async (req: Request, res: Response) => {
+  apiRouter.get("/appointments/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -264,10 +272,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
   
-  apiRouter.put("/appointments/:id", async (req: Request, res: Response) => {
+  apiRouter.put("/appointments/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -275,7 +283,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
       
       // Validação parcial dos campos permitidos
-      const data: Partial<typeof insertAppointmentSchema._type> = req.body;
+      const data = bookingFields.partial().extend({
+        status: insertAppointmentSchema.shape.status,
+      }).strict().parse(req.body);
       
       const updatedAppointment = await storage.updateAppointment(id, data);
       if (!updatedAppointment) {
@@ -308,10 +318,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
   
-  apiRouter.delete("/appointments/:id", async (req: Request, res: Response) => {
+  apiRouter.delete("/appointments/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -339,10 +349,10 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
   
-  apiRouter.put("/appointments/:id/confirm", async (req: Request, res: Response) => {
+  apiRouter.put("/appointments/:id/confirm", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -358,17 +368,15 @@ export async function registerRoutes(app: Express): Promise<void> {
         });
       }
 
-      // Gerar código de indicação personalizado com o nome do cliente
-      const referralCode = await storage.generateReferralCode(appointment.clientName);
-
-      // Criar registro de referral
-      const referralData = {
-        referralCode,
-        clientName: appointment.clientName,
-        clientPhone: appointment.clientPhone,
-      };
-
-      const referral = await storage.createReferral(referralData);
+      let referral = await storage.getReferralByPhone(appointment.clientPhone);
+      if (!referral) {
+        referral = await storage.createReferral({
+          referralCode: await storage.generateReferralCode(appointment.clientName),
+          clientName: appointment.clientName,
+          clientPhone: appointment.clientPhone,
+        });
+      }
+      const referralCode = referral.referralCode;
 
       // Atualizar o agendamento com o código de referral
       const updatedAppointment = await storage.updateAppointment(id, {
@@ -420,8 +428,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Obter uma massagista específica
   apiRouter.get("/massagistas/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -486,8 +494,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Atualizar massagista
   apiRouter.put("/massagistas/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -495,7 +503,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
       
       // Validação parcial dos campos permitidos
-      const data: Partial<typeof insertMassagistaSchema._type> = req.body;
+      const data = insertMassagistaSchema.partial().strict().parse(req.body);
       
       const updatedMassagista = await storage.updateMassagista(id, data);
       if (!updatedMassagista) {
@@ -522,8 +530,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Excluir massagista
   apiRouter.delete("/massagistas/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -554,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Rotas para o sistema de referências
   
   // Obter todas as referências
-  apiRouter.get("/referrals", async (req: Request, res: Response) => {
+  apiRouter.get("/referrals", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const referrals = await storage.getReferrals();
       
@@ -602,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
   
   // Gerar código de referência para um cliente
-  apiRouter.post("/referrals/generate", async (req: Request, res: Response) => {
+  apiRouter.post("/referrals/generate", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const { clientName, clientPhone } = req.body;
       
@@ -651,8 +659,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Uso de desconto de referência
   apiRouter.put("/referrals/use-discount/:id", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
+      const id = Number(req.params.id);
+      if (!Number.isSafeInteger(id) || id <= 0) {
         return res.status(400).json({
           success: false,
           message: "ID inválido"
@@ -678,7 +686,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       
       // Incrementar contador de descontos usados
       const updatedReferral = await storage.updateReferralStats(id, {
-        discountsUsed: selectedReferral.discountsUsed + 1
+        discountsUsed: 1
       });
       
       return res.status(200).json({
@@ -696,7 +704,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
   
   // Estatísticas mensais
-  apiRouter.get("/stats/monthly", async (req: Request, res: Response) => {
+  apiRouter.get("/stats/monthly", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const monthlyStats = await storage.getMonthlyStats();
       
@@ -714,7 +722,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
   
   // Histórico de clientes
-  apiRouter.get("/stats/client-history", async (req: Request, res: Response) => {
+  apiRouter.get("/stats/client-history", isAuthenticated, async (req: Request, res: Response) => {
     try {
       const clientHistory = await storage.getClientHistory();
       
@@ -733,6 +741,5 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Mount API routes
   app.use("/api", apiRouter);
-  
-  console.log("🚀 Rotas registradas com sucesso!");
+  app.use("/api", (_req, res) => res.status(404).json({ success: false, message: "Rota não encontrada." }));
 }

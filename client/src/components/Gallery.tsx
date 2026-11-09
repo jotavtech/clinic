@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api-request";
+import { apiRequest, responseList } from "@/lib/api-request";
 import { Loader2 } from "lucide-react";
 
 interface Massagista {
@@ -16,10 +16,10 @@ interface Massagista {
 
 export default function Gallery() {
   // Buscar massagistas ativas da API
-  const { data: massagistas = [], isLoading, isError } = useQuery({
+  const { data: massagistas = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["/api/massagistas"],
     queryFn: () => apiRequest("GET", "/api/massagistas"),
-    select: (data: any) => data.massagistas.filter((m: Massagista) => m.ativa) as Massagista[],
+    select: (data: any) => responseList<Massagista>(data, "massagistas").filter(m => m.ativa),
     refetchInterval: 60000, // Recarregar a cada minuto
   });
 
@@ -49,7 +49,8 @@ export default function Gallery() {
           </div>
         ) : isError ? (
           <div className="text-center py-12">
-            <p className="text-red-600">Erro ao carregar profissionais. Tente novamente mais tarde.</p>
+            <p className="text-red-600">Erro ao carregar profissionais. Tente novamente.</p>
+            <button type="button" className="mt-3 underline" disabled={isFetching} onClick={() => refetch()}>Tentar novamente</button>
           </div>
         ) : massagistas.length === 0 ? (
           <div className="text-center py-12">
@@ -68,12 +69,14 @@ export default function Gallery() {
               >
                 <div className="relative overflow-hidden h-80">
                   <img
-                    src={massagista.fotoUrl || "https://via.placeholder.com/300x400?text=Sem+Foto"}
+                    src={massagista.fotoUrl || "/placeholder.svg"}
+                    loading="lazy"
                     alt={`Foto de ${massagista.nome}`}
                     className="w-full h-full object-cover object-top"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = "https://via.placeholder.com/300x400?text=Sem+Foto";
+                      target.onerror = null;
+                      target.src = "/placeholder.svg";
                     }}
                   />
                   {massagista.suiteMaster && (

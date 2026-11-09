@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import { db } from './db'; // Importa a instância do Prisma Client
 import type { 
     User as SharedUser, InsertUser as SharedInsertUser, 
@@ -16,6 +17,7 @@ export interface IStorage {
   getUser(id: number): Promise<SharedUser | undefined>;
   getUserByUsername(username: string): Promise<SharedUser | undefined>;
   createUser(user: SharedInsertUser): Promise<SharedUser>;
+  updateUserPassword(id: number, passwordHash: string): Promise<void>;
   
   createContactForm(form: SharedInsertContactForm & { createdAt: string }): Promise<SharedContactForm>;
   getContactForms(): Promise<SharedContactForm[]>;
@@ -70,8 +72,8 @@ export class PrismaStorage implements IStorage {
         const referral = await this.getReferralByCode(newAppointmentPrisma.referredBy);
         if (referral) {
           await this.updateReferralStats(referral.id, {
-            totalReferred: referral.totalReferred + 1,
-            discountsEarned: referral.discountsEarned + 1
+            totalReferred: 1,
+            discountsEarned: 1
           });
         }
       }
@@ -154,8 +156,12 @@ export class PrismaStorage implements IStorage {
   }
 
   async createUser(userData: SharedInsertUser): Promise<SharedUser> {
-    const newUserPrisma = await db.user.create({ data: userData as any });
+    const newUserPrisma = await db.user.create({ data: { ...userData, password: await bcrypt.hash(userData.password, 12) } });
     return newUserPrisma as unknown as SharedUser;
+  }
+
+  async updateUserPassword(id: number, passwordHash: string): Promise<void> {
+    await db.user.update({ where: { id }, data: { password: passwordHash } });
   }
 
   async getUser(id: number): Promise<SharedUser | undefined> {
@@ -195,7 +201,7 @@ export class PrismaStorage implements IStorage {
           fotoUrl: massagistaData.fotoUrl,
           videoUrl: massagistaData.videoUrl || null,
           suiteMaster: massagistaData.suiteMaster || false,
-          ativa: massagistaData.ativa !== undefined ? massagistaData.ativa : true
+          ativa: massagistaData.ativa ?? true
         }
       });
       return newMassagistaPrisma as unknown as SharedMassagista;

@@ -123,3 +123,8 @@
 .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
   background-color: hsl(var(--secondary) / 0.2) !important;
 }
+
+section[id] { scroll-margin-top: 6rem; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

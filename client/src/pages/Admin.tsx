@@ -1,3 +1,4 @@
+import { calendarDateKey, parseCalendarDate } from "@shared/booking";
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -15,29 +16,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { ImageUpload } from "@/components/ImageUpload";
 import { Loader2, Plus, Edit, Trash2, LogOut, Calendar as CalendarIcon, Clock, User, Phone, MapPin } from "lucide-react";
 
-// Função auxiliar para fazer requisições
-async function apiRequest(method: string, url: string, data?: any) {
-  const config: RequestInit = {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  };
-
-  if (data && method !== "GET") {
-    config.body = JSON.stringify(data);
-  }
-
-  const response = await fetch(url, config);
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Erro na requisição" }));
-    throw new Error(errorData.message || `HTTP Error: ${response.status}`);
-  }
-
-  return response.json();
-}
+import { apiRequest, responseList } from "@/lib/api-request";
 
 interface Massagista {
   id: number;
@@ -96,6 +75,7 @@ export default function Admin() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
+  const [imageUploading, setImageUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("massagistas");
   const [massagistaModalOpen, setMassagistaModalOpen] = useState(false);
   const [isEditingMassagista, setIsEditingMassagista] = useState(false);
@@ -111,22 +91,22 @@ export default function Admin() {
   });
 
   // Buscar todas as massagistas
-  const { data: massagistas = [], isLoading: isLoadingMassagistas, refetch: refetchMassagistas } = useQuery({
+  const { data: massagistas = [], isLoading: isLoadingMassagistas, isError: massagistasError, refetch: refetchMassagistas } = useQuery({
     queryKey: ["/api/massagistas"],
     queryFn: () => apiRequest("GET", "/api/massagistas"),
     enabled: isAuthenticated,
-    select: (data: any) => data.massagistas as Massagista[],
+    select: (data: any) => responseList<Massagista>(data, "massagistas"),
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     staleTime: 5000,
   });
 
   // Buscar todos os agendamentos
-  const { data: appointments = [], isLoading: isLoadingAppointments, refetch: refetchAppointments } = useQuery({
+  const { data: appointments = [], isLoading: isLoadingAppointments, isError: appointmentsError, refetch: refetchAppointments } = useQuery({
     queryKey: ["/api/appointments"],
     queryFn: () => apiRequest("GET", "/api/appointments"),
     enabled: isAuthenticated,
-    select: (data: any) => data.appointments as Appointment[],
+    select: (data: any) => responseList<Appointment>(data, "appointments"),
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     staleTime: 5000,
@@ -177,7 +157,7 @@ export default function Admin() {
   }, [appointments]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    return parseCalendarDate(dateString)?.toLocaleDateString('pt-BR') || 'Data indisponível';
   };
 
   const formatDateTime = (dateString: string) => {
@@ -185,13 +165,11 @@ export default function Admin() {
   };
 
   const formatCalendarDate = (date: Date) => {
-    return date.toISOString().split('T')[0];
+    return calendarDateKey(date);
   };
 
   const isSameDate = (date1: string, date2: Date) => {
-    const d1 = new Date(date1).toISOString().split('T')[0];
-    const d2 = date2.toISOString().split('T')[0];
-    return d1 === d2;
+    return date1 === calendarDateKey(date2);
   };
 
   // Filtrar agendamentos pela data selecionada
@@ -205,9 +183,9 @@ export default function Admin() {
   const datesWithAppointments = React.useMemo(() => {
     const dates = new Set<string>();
     appointments.forEach(appointment => {
-      dates.add(new Date(appointment.date).toISOString().split('T')[0]);
+      if (parseCalendarDate(appointment.date)) dates.add(appointment.date);
     });
-    return Array.from(dates).map(dateStr => new Date(dateStr));
+    return Array.from(dates).map(dateStr => parseCalendarDate(dateStr)!);
   }, [appointments]);
 
   const getStatusBadge = (status: string) => {
@@ -291,7 +269,6 @@ export default function Admin() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
-      await refetchMassagistas();
       toast({
         title: "Sucesso",
         description: "Massagista adicionada com sucesso!",
@@ -314,7 +291,6 @@ export default function Admin() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
-      await refetchMassagistas();
       toast({
         title: "Sucesso",
         description: "Massagista atualizada com sucesso!",
@@ -337,7 +313,6 @@ export default function Admin() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/massagistas"] });
-      await refetchMassagistas();
       toast({
         title: "Sucesso",
         description: "Massagista excluída com sucesso!",
@@ -359,7 +334,6 @@ export default function Admin() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
-      await refetchAppointments();
       toast({
         title: "Sucesso",
         description: "Agendamento excluído com sucesso!",
@@ -385,6 +359,11 @@ export default function Admin() {
   const handleMassagistaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (imageUploading || createMassagistaMutation.isPending || updateMassagistaMutation.isPending) return;
+    if (!massagistaFormData.nome.trim() || !massagistaFormData.descricao.trim() || !massagistaFormData.fotoUrl) {
+      toast({ title: "Dados incompletos", description: "Preencha nome, descrição e foto da profissional.", variant: "destructive" });
+      return;
+    }
     if (isEditingMassagista && currentMassagista) {
       updateMassagistaMutation.mutate({
         id: currentMassagista.id,
@@ -408,9 +387,9 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-8 flex flex-wrap gap-4 justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Painel Administrativo</h1>
             <p className="text-gray-600">Gerencie massagistas, agendamentos e muito mais</p>
@@ -421,8 +400,14 @@ export default function Admin() {
           </Button>
         </div>
 
+        {(massagistasError || appointmentsError) && (
+          <div role="alert" className="mb-4 rounded border border-red-300 bg-red-50 p-4 text-red-800">
+            Não foi possível carregar {massagistasError ? "as profissionais" : "os agendamentos"}. Os dados abaixo podem estar incompletos.
+            <Button variant="outline" className="ml-2" onClick={() => { if (massagistasError) void refetchMassagistas(); if (appointmentsError) void refetchAppointments(); }}>Tentar novamente</Button>
+          </div>
+        )}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="massagistas">Massagistas</TabsTrigger>
             <TabsTrigger value="agendamentos">Agendamentos</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
@@ -431,7 +416,7 @@ export default function Admin() {
 
           <TabsContent value="massagistas" className="space-y-6">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-wrap gap-3 items-center justify-between">
                 <div>
                   <CardTitle>Massagistas</CardTitle>
                   <CardDescription>Gerencie as massagistas da clínica</CardDescription>
@@ -498,7 +483,10 @@ export default function Admin() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => deleteMassagistaMutation.mutate(massagista.id)}
+                              disabled={deleteMassagistaMutation.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Excluir a profissional ${massagista.nome}?`)) deleteMassagistaMutation.mutate(massagista.id);
+                              }}
                             >
                               <Trash2 className="mr-1 h-3 w-3" />
                               Excluir
@@ -557,7 +545,7 @@ export default function Admin() {
 
               {/* Lista de agendamentos da data selecionada */}
               <Card className="lg:col-span-2">
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-wrap gap-3 items-center justify-between">
                   <div>
                     <CardTitle>
                       Agendamentos para {selectedDate.toLocaleDateString('pt-BR', { 
@@ -648,8 +636,9 @@ export default function Admin() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteAppointment(appointment)}
                               disabled={deleteAppointmentMutation.isPending}
+                              onClick={() => handleDeleteAppointment(appointment)}
+
                               className="text-xs text-red-600 hover:text-red-700"
                             >
                               {deleteAppointmentMutation.isPending ? (
@@ -699,7 +688,7 @@ export default function Admin() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setSelectedDate(new Date(appointment.date))}
+                            onClick={() => setSelectedDate(parseCalendarDate(appointment.date) || new Date())}
                             className="text-xs"
                           >
                             Ver dia
@@ -707,7 +696,8 @@ export default function Admin() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteAppointment(appointment)}
+                            disabled={deleteAppointmentMutation.isPending}
+                              onClick={() => handleDeleteAppointment(appointment)}
                             className="text-xs text-red-600 hover:text-red-700"
                           >
                             {deleteAppointmentMutation.isPending ? (
@@ -763,8 +753,9 @@ export default function Admin() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleDeleteAppointment(appointment)}
                                   disabled={deleteAppointmentMutation.isPending}
+                              onClick={() => handleDeleteAppointment(appointment)}
+
                                   className="text-xs text-red-600 hover:text-red-700"
                                 >
                                   {deleteAppointmentMutation.isPending ? (
@@ -903,7 +894,7 @@ export default function Admin() {
 
         {/* Modal de Criação/Edição de Massagista */}
         <Dialog open={massagistaModalOpen} onOpenChange={setMassagistaModalOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {isEditingMassagista ? "Editar Massagista" : "Nova Massagista"}
@@ -941,6 +932,7 @@ export default function Admin() {
                 <div className="space-y-2">
                   <Label>Foto da Massagista</Label>
                   <ImageUpload
+                    onUploadingChange={setImageUploading}
                     onImageUploaded={(imageUrl) =>
                       handleMassagistaFormChange("fotoUrl", imageUrl)
                     }
@@ -952,6 +944,7 @@ export default function Admin() {
                   <Label htmlFor="videoUrl">URL do Vídeo (opcional)</Label>
                   <Input
                     id="videoUrl"
+                    type="url"
                     placeholder="https://exemplo.com/video.mp4"
                     value={massagistaFormData.videoUrl}
                     onChange={(e) => handleMassagistaFormChange("videoUrl", e.target.value)}
@@ -998,7 +991,7 @@ export default function Admin() {
                 <Button
                   type="submit"
                   disabled={
-                    createMassagistaMutation.isPending ||
+                    imageUploading || createMassagistaMutation.isPending ||
                     updateMassagistaMutation.isPending
                   }
                 >

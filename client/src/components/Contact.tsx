@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
 import { z } from "zod";
-import { fromZodError } from "zod-validation-error";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarIcon, ClipboardCopy, CheckCircle } from "lucide-react";
@@ -35,7 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { insertAppointmentSchema } from "@shared/schema";
+import { bookingSchema, bookingTimes, clinicNow, parseCalendarDate } from "@shared/booking";
 import {
   Dialog,
   DialogContent,
@@ -45,25 +44,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const appointmentFormSchema = insertAppointmentSchema.extend({
-  clientName: z.string().min(3, {
-    message: "O nome deve ter pelo menos 3 caracteres.",
-  }),
-  clientPhone: z.string().max(11, {
-    message: "Por favor, insira um número de telefone válido.",
-  }),
-  date: z.string().min(1, {
-    message: "Por favor, selecione uma data.",
-  }),
-  time: z.string().min(1, {
-    message: "Por favor, selecione um horário.",
-  }),
-  service: z.string().min(1, {
-    message: "Por favor, selecione um serviço.",
-  }),
-  notes: z.string().optional(),
-  referredBy: z.string().optional(),
-});
+const appointmentFormSchema = bookingSchema;
 
 type AppointmentFormValues = z.infer<typeof appointmentFormSchema>;
 
@@ -83,15 +64,18 @@ export default function Contact() {
       time: "",
       duration: 60,
       notes: "",
-      status: "agendado",
       referredBy: "",
     },
   });
+
+  const selectedDate = appointmentForm.watch("date");
 
   async function onAppointmentSubmit(data: AppointmentFormValues) {
     try {
       const responseData = await apiRequest("POST", "/api/appointments", data);
       const appointmentData = responseData?.appointment;
+
+      if (!appointmentData?.id) throw new Error("Não foi possível confirmar o agendamento. Entre em contato com a clínica antes de tentar novamente.");
 
       // Mensagem de sucesso simples
       toast({
@@ -100,6 +84,7 @@ export default function Contact() {
       });
 
       // Se o cliente recebeu um código de referência, mostramos no modal
+      setIsCopied(false);
       if (appointmentData && appointmentData.referralCode) {
         setReferralCode(appointmentData.referralCode);
         setIsReferralModalOpen(true);
@@ -114,7 +99,6 @@ export default function Contact() {
         time: "",
         duration: 60,
         notes: "",
-        status: "agendado",
         referredBy: "",
       });
       
@@ -139,22 +123,18 @@ export default function Contact() {
   }
 
   // Função para copiar o código para a área de transferência
-  const copyReferralCode = () => {
+  const copyReferralCode = async () => {
     if (referralCode) {
-      navigator.clipboard
-        .writeText(referralCode)
-        .then(() => {
-          setIsCopied(true);
-          setTimeout(() => setIsCopied(false), 2000);
-        })
-        .catch((err) => {
-          console.error("Erro ao copiar código:", err);
+      try {
+        await navigator.clipboard.writeText(referralCode);
+        setIsCopied(true);
+      } catch {
           toast({
             variant: "destructive",
             title: "Erro ao copiar",
             description: "Não foi possível copiar o código. Tente novamente.",
           });
-        });
+      }
     }
   };
   
@@ -166,7 +146,7 @@ export default function Contact() {
     const whatsappUrl = `https://wa.me/5583981101444?text=${encodedMessage}`;
     
     // Abrir o WhatsApp em uma nova aba
-    window.open(whatsappUrl, '_blank');
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -194,7 +174,7 @@ export default function Contact() {
           transition={{ duration: 0.7 }}
           viewport={{ once: true }}
         >
-          <div className="bg-[#252525] p-8 rounded-lg shadow-md">
+          <div className="bg-[#252525] p-4 sm:p-8 rounded-lg shadow-md">
             <Form {...appointmentForm}>
               <form
                 onSubmit={appointmentForm.handleSubmit(onAppointmentSubmit)}
@@ -216,8 +196,8 @@ export default function Contact() {
                             <FormLabel>Nome Completo</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="Seu nome completo"
-                                className="text-gray-600 placeholder:text-gray-600"
+                                autoComplete="name" placeholder="Seu nome completo"
+                                className="bg-white text-gray-900 placeholder:text-gray-500"
                                 {...field}
                               />
                             </FormControl>
@@ -233,8 +213,8 @@ export default function Contact() {
                           <FormItem>
                             <FormLabel>Telefone/WhatsApp</FormLabel>
                             <FormControl>
-                              <Input placeholder="(83) 99999-9999"
-                                className="text-gray-600 placeholder:text-gray-600"
+                              <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="(83) 99999-9999"
+                                className="bg-white text-gray-900 placeholder:text-gray-500"
                                 {...field}/>
                             </FormControl>
                             <FormMessage />
@@ -258,7 +238,7 @@ export default function Contact() {
                             <FormLabel>Serviço Desejado</FormLabel>
                             <Select
                               onValueChange={field.onChange}
-                              defaultValue={field.value}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger
@@ -316,65 +296,7 @@ export default function Contact() {
                                     )}
                                   >
                                     {field.value ? (
-                                      (() => {
-                                        try {
-                                          // Criar uma data local para evitar problemas com fuso horário
-                                          const dateParts =
-                                            field.value.split("-");
-                                          if (dateParts.length !== 3) {
-                                            return <span>Data inválida</span>;
-                                          }
-
-                                          // Extrair ano, mês e dia da string formatada
-                                          const year = parseInt(
-                                            dateParts[0],
-                                            10,
-                                          );
-                                          const month =
-                                            parseInt(dateParts[1], 10) - 1; // Os meses em JS começam em 0
-                                          const day = parseInt(
-                                            dateParts[2],
-                                            10,
-                                          );
-
-                                          // Criar uma nova data com estes valores
-                                          const date = new Date(
-                                            year,
-                                            month,
-                                            day,
-                                            12,
-                                            0,
-                                            0,
-                                          );
-
-                                          // Verificar se a data é válida
-                                          if (isNaN(date.getTime())) {
-                                            console.error(
-                                              "Data inválida criada:",
-                                              date,
-                                            );
-                                            return <span>Data inválida</span>;
-                                          }
-
-                                          console.log(
-                                            "Data exibida no botão:",
-                                            date,
-                                          );
-
-                                          // Usar formato longo em português
-                                          return format(
-                                            date,
-                                            "EEEE, dd 'de' MMMM 'de' yyyy",
-                                            { locale: ptBR },
-                                          );
-                                        } catch (error) {
-                                          console.error(
-                                            "Erro ao formatar data:",
-                                            error,
-                                          );
-                                          return <span>Erro na data</span>;
-                                        }
-                                      })()
+                                      format(parseCalendarDate(field.value)!, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
                                     ) : (
                                       <span>Selecione uma data</span>
                                     )}
@@ -401,19 +323,13 @@ export default function Contact() {
                                         "yyyy-MM-dd",
                                       );
 
-                                      console.log("Data clicada:", date);
-                                      console.log(
-                                        "Data formatada final:",
-                                        formattedDate,
-                                      );
-
                                       field.onChange(formattedDate);
                                       appointmentForm.setValue("time", "");
                                     } else {
                                       field.onChange("");
                                     }
                                   }}
-                                  fromDate={new Date()}
+                                  disabled={(date) => format(date, "yyyy-MM-dd") < clinicNow().date}
                                   initialFocus
                                 />
                               </PopoverContent>
@@ -430,17 +346,15 @@ export default function Contact() {
                         render={({ field }) => {
                           // Determinar se é fim de semana com base na data selecionada
                           const isWeekend = (() => {
-                            if (!appointmentForm.getValues("date"))
+                            if (!selectedDate)
                               return false;
                             const date = new Date(
-                              appointmentForm.getValues("date"),
+                              selectedDate + "T12:00:00",
                             );
                             const day = date.getDay();
                             return day === 0 || day === 6; // 0 = domingo, 6 = sábado
                           })();
 
-                          const selectedDate =
-                            appointmentForm.getValues("date");
                           const dateText = selectedDate
                             ? (() => {
                                 try {
@@ -468,7 +382,8 @@ export default function Contact() {
                               </FormLabel>
                               <Select
                                 onValueChange={field.onChange}
-                                defaultValue={field.value}
+                                value={field.value}
+                                disabled={!selectedDate}
                               >
                                 <FormControl>
                                   <SelectTrigger
@@ -483,93 +398,9 @@ export default function Contact() {
                                   </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                  {isWeekend ? (
-                                    // Horários para fim de semana (9:00 - 20:00)
-                                    <>
-                                      <SelectItem value="09:00">
-                                        09:00
-                                      </SelectItem>
-                                      <SelectItem value="10:00">
-                                        10:00
-                                      </SelectItem>
-                                      <SelectItem value="11:00">
-                                        11:00
-                                      </SelectItem>
-                                      <SelectItem value="12:00">
-                                        12:00
-                                      </SelectItem>
-                                      <SelectItem value="13:00">
-                                        13:00
-                                      </SelectItem>
-                                      <SelectItem value="14:00">
-                                        14:00
-                                      </SelectItem>
-                                      <SelectItem value="15:00">
-                                        15:00
-                                      </SelectItem>
-                                      <SelectItem value="16:00">
-                                        16:00
-                                      </SelectItem>
-                                      <SelectItem value="17:00">
-                                        17:00
-                                      </SelectItem>
-                                      <SelectItem value="18:00">
-                                        18:00
-                                      </SelectItem>
-                                      <SelectItem value="19:00">
-                                        19:00
-                                      </SelectItem>
-                                      <SelectItem value="20:00">
-                                        20:00
-                                      </SelectItem>
-                                    </>
-                                  ) : (
-                                    // Horários para dias úteis (8:30 - 21:00)
-                                    <>
-                                      <SelectItem value="08:30">
-                                        08:30
-                                      </SelectItem>
-                                      <SelectItem value="09:00">
-                                        09:00
-                                      </SelectItem>
-                                      <SelectItem value="10:00">
-                                        10:00
-                                      </SelectItem>
-                                      <SelectItem value="11:00">
-                                        11:00
-                                      </SelectItem>
-                                      <SelectItem value="12:00">
-                                        12:00
-                                      </SelectItem>
-                                      <SelectItem value="13:00">
-                                        13:00
-                                      </SelectItem>
-                                      <SelectItem value="14:00">
-                                        14:00
-                                      </SelectItem>
-                                      <SelectItem value="15:00">
-                                        15:00
-                                      </SelectItem>
-                                      <SelectItem value="16:00">
-                                        16:00
-                                      </SelectItem>
-                                      <SelectItem value="17:00">
-                                        17:00
-                                      </SelectItem>
-                                      <SelectItem value="18:00">
-                                        18:00
-                                      </SelectItem>
-                                      <SelectItem value="19:00">
-                                        19:00
-                                      </SelectItem>
-                                      <SelectItem value="20:00">
-                                        20:00
-                                      </SelectItem>
-                                      <SelectItem value="21:00">
-                                        21:00
-                                      </SelectItem>
-                                    </>
-                                  )}
+                                  {bookingTimes(selectedDate).filter(time => selectedDate !== clinicNow().date || time > clinicNow().time).map(time => (
+                                    <SelectItem key={time} value={time}>{time}</SelectItem>
+                                  ))}
                                 </SelectContent>
                               </Select>
                               <FormMessage />
@@ -596,10 +427,11 @@ export default function Contact() {
                       control={appointmentForm.control}
                       name="referredBy"
                       render={({ field }) => (
-                        <FormItem className="mb-4 text-gray-600">
+                        <FormItem className="mb-4">
                           <FormLabel>Código de Indicação (opcional)</FormLabel>
                           <FormControl>
                             <Input
+                              className="bg-white text-gray-900"
                               placeholder="Se você foi indicado por alguém, digite o código aqui"
                               {...field}
                               value={field.value || ""}
@@ -624,7 +456,7 @@ export default function Contact() {
                           <FormControl>
                             <Textarea
                               placeholder="Preferência de bebida, fumante ou preferência com as profissionais..."
-                              className="min-h-[80px] text-gray-600"
+                              className="min-h-[80px] bg-white text-gray-900"
                               {...field}
                             />
                           </FormControl>
@@ -730,7 +562,6 @@ export default function Contact() {
               time: "",
               duration: 60,
               notes: "",
-              status: "agendado",
               referredBy: "",
             });
             appointmentForm.clearErrors();
