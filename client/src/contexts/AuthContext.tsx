@@ -1,28 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Função auxiliar para fazer requisições
-async function apiRequest(method: string, url: string, data?: any) {
-  const config: RequestInit = {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  };
-
-  if (data && method !== "GET") {
-    config.body = JSON.stringify(data);
-  }
-
-  const response = await fetch(url, config);
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: "Erro na requisição" }));
-    throw new Error(errorData.message || `HTTP Error: ${response.status}`);
-  }
-
-  return response.json();
-}
+import { queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/api-request";
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -38,6 +17,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    const expire = () => { setIsAuthenticated(false); queryClient.clear(); };
+    window.addEventListener("auth:expired", expire);
     // Verifica se o usuário está autenticado
     const checkAuth = async () => {
       try {
@@ -52,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     checkAuth();
+    return () => window.removeEventListener("auth:expired", expire);
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -62,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('Erro ao fazer login:', error);
-      return false;
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -73,8 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       await apiRequest('POST', '/api/logout');
       setIsAuthenticated(false);
+      queryClient.clear();
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }

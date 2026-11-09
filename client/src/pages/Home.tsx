@@ -18,7 +18,7 @@ export default function Home() {
         <meta name="description" content="Clínica Executivas oferece serviços de massagem terapêutica e relaxante em Campina Grande. Conheça nossos tratamentos exclusivos para seu bem-estar." />
       </Helmet>
 
-      <div className="flex flex-col min-h-screen">
+      <div className="clinic-site flex flex-col min-h-screen">
         <Header />
         <main>
           <Hero />

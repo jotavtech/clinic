@@ -1,9 +1,10 @@
+import { Heart, BadgeCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function About() {
   return (
-    <section id="sobre" className="py-16 bg-[#F5F5F5]">
+    <section id="sobre" className="remaster-about py-16 bg-[#F5F5F5]">
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row gap-12 items-center">
           <motion.div
@@ -13,26 +14,24 @@ export default function About() {
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
+            <span className="section-kicker">Sobre nós</span>
             <h2 className="text-3xl md:text-4xl font-display mb-6 relative">
               <span className="inline-block pb-2 border-b-2 border-secondary">
                 Sobre a Clínica Executivas
               </span>
             </h2>
             <p className="mb-6 text-lg">
-              Um convite ao prazer de estar presente. Aqui, o tempo desacelera,
-              o toque desperta e a energia se transforma. Cada encontro é uma
-              celebração do corpo, da pele, do desejo e da consciência. Um
-              espaço onde você se permite sentir, se entregar e se reconectar
-              com a sua essência mais íntima — sem pressa, sem julgamentos,
-              apenas presença.
+              Um convite para estar presente. Aqui, o tempo desacelera e o
+              cuidado ganha espaço. Um ambiente acolhedor para relaxar e cuidar
+              do seu bem-estar — sem pressa, com atenção a cada detalhe.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 mt-8">
               <div className="flex items-center gap-3">
-                <i className="fas fa-certificate text-secondary text-3xl"></i>
-                <span>Mulheres incríveis</span>
+                <BadgeCheck className="text-secondary" size={24}/>
+                <span>Nossa equipe</span>
               </div>
               <div className="flex items-center gap-3">
-                <i className="fas fa-heart text-secondary text-3xl"></i>
+                <Heart className="text-secondary" size={24}/>
                 <span>Atendimento Aconchegante</span>
               </div>
             </div>
@@ -49,7 +48,7 @@ export default function About() {
               <CardContent className="p-0">
                 <img
                   src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=800&h=600"
-                  alt="Espaço acolhedor da Clínica Executivas"
+                  alt="Imagem ilustrativa de um espaço de bem-estar"
                   className="w-full h-auto rounded-lg"
                 />
               </CardContent>

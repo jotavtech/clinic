@@ -1,16 +1,14 @@
+import { ArrowUpRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
 const services = [
   "Massagem Relaxante",
-  "Penetração Vaginal",
-  "Massagem com finalização sexual",
-  "Sexo oral",
 ];
 
 export default function Services() {
   return (
-    <section id="servicos" className="py-16 bg-white">
+    <section id="servicos" className="remaster-services py-16 bg-white">
       <div className="container mx-auto px-4">
         <motion.div
           className="text-center mb-12"
@@ -19,6 +17,7 @@ export default function Services() {
           transition={{ duration: 0.6 }}
           viewport={{ once: true }}
         >
+          <span className="section-kicker">Nossos serviços</span>
           <h2 className="text-3xl md:text-4xl font-display mb-4">
             Nossos Serviços
           </h2>
@@ -35,7 +34,7 @@ export default function Services() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
-            className="bg-[#F5F5F5] rounded-lg shadow-md p-8"
+            className="suite-card bg-[#F5F5F5] rounded-lg shadow-md p-8"
           >
             <div className="text-center">
               <h3 className="text-2xl font-display font-semibold mb-6">
@@ -44,7 +43,7 @@ export default function Services() {
               <ul className="mb-6 space-y-3 text-left">
                 {services.map((service, index) => (
                   <li key={index} className="text-lg font-display">
-                    {service}
+                    <Check size={17} aria-hidden="true"/>{service}
                   </li>
                 ))}
               </ul>
@@ -58,7 +57,7 @@ export default function Services() {
                 variant="outline"
                 className="border-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-colors font-accent py-3 px-8 rounded text-sm uppercase shadow-sm font-medium text-black w-full"
               >
-                <a href="#contato">Agendar</a>
+                <a href="#contato">Agendar <ArrowUpRight size={17}/></a>
               </Button>
             </div>
           </motion.div>
@@ -69,7 +68,7 @@ export default function Services() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
             viewport={{ once: true }}
-            className="bg-[#1a1a1a] text-white rounded-lg shadow-md p-8"
+            className="suite-card suite-card-dark bg-[#1a1a1a] text-white rounded-lg shadow-md p-8"
           >
             <div className="text-center">
               <h3 className="text-2xl font-display font-semibold mb-6">
@@ -78,7 +77,7 @@ export default function Services() {
               <ul className="mb-6 space-y-3 text-left">
                 {services.map((service, index) => (
                   <li key={index} className="text-lg font-display">
-                    {service}
+                    <Check size={17} aria-hidden="true"/>{service}
                   </li>
                 ))}
                 <li className="text-lg font-display font-semibold text-secondary">
@@ -98,7 +97,7 @@ export default function Services() {
                 variant="outline"
                 className="border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition-colors font-accent py-3 px-8 rounded text-sm uppercase shadow-sm font-medium w-full"
               >
-                <a href="#contato">Agendar</a>
+                <a href="#contato">Agendar <ArrowUpRight size={17}/></a>
               </Button>
             </div>
           </motion.div>

@@ -16,10 +16,10 @@ export const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB
   },
   fileFilter: (req: any, file: any, cb: any) => {
-    if (file.mimetype.startsWith('image/')) {
+    if (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Apenas arquivos de imagem são permitidos!'));
+      cb(Object.assign(new Error('Envie uma imagem JPEG, PNG, WebP ou GIF.'), { status: 400 }));
     }
   }
 });
@@ -29,7 +29,7 @@ export const uploadToCloudinary = async (buffer: Buffer, filename: string): Prom
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload_stream(
       {
-        resource_type: 'auto',
+        resource_type: 'image',
         folder: 'massagistas',
         public_id: `massagista_${Date.now()}`,
         transformation: [

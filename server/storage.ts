@@ -1,10 +1,11 @@
+import bcrypt from 'bcrypt';
 import { db } from './db'; // Importa a instância do Prisma Client
-import type { 
-    User as SharedUser, InsertUser as SharedInsertUser, 
+import type {
+    User as SharedUser, InsertUser as SharedInsertUser,
     ContactForm as SharedContactForm, InsertContactForm as SharedInsertContactForm,
     Appointment as SharedAppointment, InsertAppointment as SharedInsertAppointment,
     Massagista as SharedMassagista, InsertMassagista as SharedInsertMassagista,
-    Referral as SharedReferral, InsertReferral as SharedInsertReferral 
+    Referral as SharedReferral, InsertReferral as SharedInsertReferral
 } from "@shared/schema";
 
 // Importa tipos do Prisma - o Prisma Client já foi gerado
@@ -16,34 +17,35 @@ export interface IStorage {
   getUser(id: number): Promise<SharedUser | undefined>;
   getUserByUsername(username: string): Promise<SharedUser | undefined>;
   createUser(user: SharedInsertUser): Promise<SharedUser>;
-  
+  updateUserPassword(id: number, passwordHash: string): Promise<void>;
+
   createContactForm(form: SharedInsertContactForm & { createdAt: string }): Promise<SharedContactForm>;
   getContactForms(): Promise<SharedContactForm[]>;
   getContactForm(id: number): Promise<SharedContactForm | undefined>;
-  
+
   createAppointment(appointment: SharedInsertAppointment & { createdAt?: string }): Promise<SharedAppointment>;
   getAppointments(): Promise<SharedAppointment[]>;
   getAppointment(id: number): Promise<SharedAppointment | undefined>;
   getAppointmentsByDate(date: string): Promise<SharedAppointment[]>;
   updateAppointment(id: number, data: Partial<SharedInsertAppointment>): Promise<SharedAppointment | undefined>;
   deleteAppointment(id: number): Promise<boolean>;
-  
+
   getMassagistas(): Promise<SharedMassagista[]>;
   getMassagista(id: number): Promise<SharedMassagista | undefined>;
   createMassagista(massagista: SharedInsertMassagista & { createdAt?: string }): Promise<SharedMassagista>;
   updateMassagista(id: number, data: Partial<SharedInsertMassagista>): Promise<SharedMassagista | undefined>;
   deleteMassagista(id: number): Promise<boolean>;
-  
+
   createReferral(referral: SharedInsertReferral & { createdAt?: string }): Promise<SharedReferral>;
   getReferrals(): Promise<SharedReferral[]>;
   getReferralByCode(code: string): Promise<SharedReferral | undefined>;
   getReferralByPhone(phone: string): Promise<SharedReferral | undefined>;
-  updateReferralStats(id: number, data: { 
-    totalReferred?: number; 
-    discountsEarned?: number; 
-    discountsUsed?: number; 
+  updateReferralStats(id: number, data: {
+    totalReferred?: number;
+    discountsEarned?: number;
+    discountsUsed?: number;
   }): Promise<SharedReferral | undefined>;
-  
+
   getClientHistory(): Promise<SharedAppointment[]>;
   getMonthlyStats(): Promise<{ month: string; count: number; clients: string[]; clientVisits: { name: string; count: number }[] }[]>;
   generateReferralCode(clientName?: string): Promise<string>;
@@ -70,8 +72,8 @@ export class PrismaStorage implements IStorage {
         const referral = await this.getReferralByCode(newAppointmentPrisma.referredBy);
         if (referral) {
           await this.updateReferralStats(referral.id, {
-            totalReferred: referral.totalReferred + 1,
-            discountsEarned: referral.discountsEarned + 1
+            totalReferred: 1,
+            discountsEarned: 1
           });
         }
       }
@@ -154,8 +156,12 @@ export class PrismaStorage implements IStorage {
   }
 
   async createUser(userData: SharedInsertUser): Promise<SharedUser> {
-    const newUserPrisma = await db.user.create({ data: userData as any });
+    const newUserPrisma = await db.user.create({ data: { ...userData, password: await bcrypt.hash(userData.password, 12) } });
     return newUserPrisma as unknown as SharedUser;
+  }
+
+  async updateUserPassword(id: number, passwordHash: string): Promise<void> {
+    await db.user.update({ where: { id }, data: { password: passwordHash } });
   }
 
   async getUser(id: number): Promise<SharedUser | undefined> {
@@ -174,12 +180,12 @@ export class PrismaStorage implements IStorage {
     const newFormPrisma = await db.contactForm.create({ data: form as any });
     return newFormPrisma as unknown as SharedContactForm;
   }
-  
+
   async getContactForms(): Promise<SharedContactForm[]> {
       const formsPrisma = await db.contactForm.findMany();
       return formsPrisma as unknown as SharedContactForm[];
   }
-  
+
   async getContactForm(id: number): Promise<SharedContactForm | undefined> {
       const formPrisma = await db.contactForm.findUnique({ where: { id } });
       if (!formPrisma) return undefined;
@@ -195,7 +201,7 @@ export class PrismaStorage implements IStorage {
           fotoUrl: massagistaData.fotoUrl,
           videoUrl: massagistaData.videoUrl || null,
           suiteMaster: massagistaData.suiteMaster || false,
-          ativa: massagistaData.ativa !== undefined ? massagistaData.ativa : true
+          ativa: massagistaData.ativa ?? true
         }
       });
       return newMassagistaPrisma as unknown as SharedMassagista;
@@ -204,12 +210,12 @@ export class PrismaStorage implements IStorage {
       throw error;
     }
   }
-  
+
   async getMassagistas(): Promise<SharedMassagista[]> {
       const massagistasPrisma = await db.massagista.findMany();
       return massagistasPrisma as unknown as SharedMassagista[];
   }
-  
+
   async getMassagista(id: number): Promise<SharedMassagista | undefined> {
       const massagistaPrisma = await db.massagista.findUnique({ where: { id } });
       if (!massagistaPrisma) return undefined;
@@ -239,7 +245,7 @@ export class PrismaStorage implements IStorage {
 
   async createReferral(referralData: SharedInsertReferral): Promise<SharedReferral> {
     try {
-        const newReferralPrisma = await db.referral.create({ 
+        const newReferralPrisma = await db.referral.create({
           data: {
             ...referralData,
             createdAt: new Date().toISOString(),
@@ -272,10 +278,10 @@ export class PrismaStorage implements IStorage {
       return referralPrisma as unknown as SharedReferral;
   }
 
-  async updateReferralStats(id: number, data: { 
-    totalReferred?: number; 
-    discountsEarned?: number; 
-    discountsUsed?: number; 
+  async updateReferralStats(id: number, data: {
+    totalReferred?: number;
+    discountsEarned?: number;
+    discountsUsed?: number;
   }): Promise<SharedReferral | undefined> {
     const updateData: any = {};
     if (data.totalReferred !== undefined) updateData.totalReferred = { increment: data.totalReferred };

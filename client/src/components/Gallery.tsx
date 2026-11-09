@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/api-request";
+import { apiRequest, responseList } from "@/lib/api-request";
 import { Loader2 } from "lucide-react";
 
 interface Massagista {
@@ -16,15 +16,15 @@ interface Massagista {
 
 export default function Gallery() {
   // Buscar massagistas ativas da API
-  const { data: massagistas = [], isLoading, isError } = useQuery({
+  const { data: massagistas = [], isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["/api/massagistas"],
     queryFn: () => apiRequest("GET", "/api/massagistas"),
-    select: (data: any) => data.massagistas.filter((m: Massagista) => m.ativa) as Massagista[],
+    select: (data: any) => responseList<Massagista>(data, "massagistas").filter(m => m.ativa),
     refetchInterval: 60000, // Recarregar a cada minuto
   });
 
   return (
-    <section id="galeria" className="py-16 bg-[#F5F5F5]">
+    <section id="galeria" className="remaster-gallery py-16 bg-[#F5F5F5]">
       <div className="container mx-auto px-4">
         <motion.div
           className="text-center mb-12"
@@ -33,6 +33,7 @@ export default function Gallery() {
           transition={{ duration: 0.6 }}
           viewport={{ once: true }}
         >
+          <span className="section-kicker">Nossa equipe</span>
           <h2 className="text-3xl md:text-4xl font-display mb-4">
             Nossas Profissionais
           </h2>
@@ -49,7 +50,8 @@ export default function Gallery() {
           </div>
         ) : isError ? (
           <div className="text-center py-12">
-            <p className="text-red-600">Erro ao carregar profissionais. Tente novamente mais tarde.</p>
+            <p className="text-red-600">Erro ao carregar profissionais. Tente novamente.</p>
+            <button type="button" className="mt-3 underline" disabled={isFetching} onClick={() => refetch()}>Tentar novamente</button>
           </div>
         ) : massagistas.length === 0 ? (
           <div className="text-center py-12">
@@ -68,12 +70,14 @@ export default function Gallery() {
               >
                 <div className="relative overflow-hidden h-80">
                   <img
-                    src={massagista.fotoUrl || "https://via.placeholder.com/300x400?text=Sem+Foto"}
+                    src={massagista.fotoUrl || "/placeholder.svg"}
+                    loading="lazy"
                     alt={`Foto de ${massagista.nome}`}
                     className="w-full h-full object-cover object-top"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      target.src = "https://via.placeholder.com/300x400?text=Sem+Foto";
+                      target.onerror = null;
+                      target.src = "/placeholder.svg";
                     }}
                   />
                   {massagista.suiteMaster && (

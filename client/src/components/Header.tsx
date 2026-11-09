@@ -34,26 +34,29 @@ export default function Header() {
   ];
 
   return (
-    <header className={`bg-primary text-white sticky top-0 z-50 transition-shadow ${scrolled ? 'shadow-md' : ''}`}>
+    <header className={`clinic-header bg-primary text-white sticky top-0 z-50 transition-shadow ${scrolled ? 'shadow-md' : ''}`}>
       <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center">
         <div className="flex items-center justify-between w-full md:w-auto">
-          <Link href="/" className="font-display text-2xl md:text-3xl font-bold cursor-pointer">
+          <Link href="/" className="clinic-brand font-display text-2xl md:text-3xl font-bold cursor-pointer">
             Clínica Executivas
           </Link>
           <button
             onClick={toggleMobileMenu}
-            className="md:hidden focus:outline-none"
+            className="md:hidden rounded p-2 focus-visible:outline focus-visible:outline-2"
+            aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="main-navigation"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        <nav className={`${mobileMenuOpen ? "block" : "hidden"} md:block w-full md:w-auto mt-4 md:mt-0`}>
+        <nav id="main-navigation" aria-label="Navegação principal" className={`${mobileMenuOpen ? "block" : "hidden"} md:block w-full md:w-auto mt-4 md:mt-0`}>
           <ul className="flex flex-col md:flex-row md:justify-end md:gap-x-6 gap-y-2 font-accent text-sm uppercase">
             {navItems.map((item, index) => (
               <li key={index} className="text-center md:text-left py-2 md:py-0">
                 {item.href.startsWith('/') ? (
-                  <Link 
+                  <Link
                     href={item.href}
                     className="hover:text-secondary transition-colors"
                     onClick={() => setMobileMenuOpen(false)}
