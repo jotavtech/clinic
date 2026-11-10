@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { ImageUpload } from "@/components/ImageUpload";
-import { Loader2, Plus, Edit, Trash2, LogOut, Calendar as CalendarIcon, Clock, User, Phone, MapPin } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, LogOut, Calendar as CalendarIcon, Clock, User, Phone, MapPin, Activity, CheckCircle2, RefreshCw, Sparkles } from "lucide-react";
 
 import { apiRequest, responseList } from "@/lib/api-request";
 
@@ -389,15 +389,37 @@ export default function Admin() {
   return (
     <div className="remaster-admin min-h-screen bg-gray-50 p-3 sm:p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-wrap gap-4 justify-between items-center">
+        <div className="admin-hero mb-6 flex flex-wrap items-end justify-between gap-5">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Painel Administrativo</h1>
-            <p className="text-gray-600">Gerencie massagistas, agendamentos e muito mais</p>
+            <span className="admin-eyebrow"><Sparkles className="h-3.5 w-3.5" /> Clínica Executivas · Gestão</span>
+            <h1 className="mt-3 text-3xl font-bold text-gray-900">Painel administrativo</h1>
+            <p className="mt-1 text-gray-600">Acompanhe a rotina e mantenha sua clínica organizada.</p>
           </div>
-          <Button onClick={handleLogout} variant="outline">
+          <Button onClick={handleLogout} variant="outline" className="admin-logout">
             <LogOut className="mr-2 h-4 w-4" />
             Sair
           </Button>
+        </div>
+
+        <div className="admin-overview mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="admin-overview-card">
+            <span className="admin-overview-icon"><CalendarIcon className="h-4 w-4" /></span>
+            <span className="admin-overview-label">Agendamentos na data</span>
+            <strong>{appointmentsForSelectedDate.length}</strong>
+            <span className="admin-overview-note">na data selecionada</span>
+          </div>
+          <div className="admin-overview-card">
+            <span className="admin-overview-icon"><CheckCircle2 className="h-4 w-4" /></span>
+            <span className="admin-overview-label">Profissionais ativas</span>
+            <strong>{massagistas.filter((item) => item.ativa).length}</strong>
+            <span className="admin-overview-note">de {massagistas.length} cadastradas</span>
+          </div>
+          <div className="admin-overview-card">
+            <span className="admin-overview-icon"><Activity className="h-4 w-4" /></span>
+            <span className="admin-overview-label">Total de agendamentos</span>
+            <strong>{appointments.length}</strong>
+            <span className="admin-overview-note">em todos os períodos</span>
+          </div>
         </div>
 
         {(massagistasError || appointmentsError) && (
@@ -407,7 +429,7 @@ export default function Admin() {
           </div>
         )}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4">
+          <TabsList className="admin-tabs grid h-auto w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="massagistas">Massagistas</TabsTrigger>
             <TabsTrigger value="agendamentos">Agendamentos</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
@@ -422,8 +444,8 @@ export default function Admin() {
                   <CardDescription>Gerencie as massagistas da clínica</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => refetchMassagistas()} variant="outline" size="sm">
-                    🔄 Atualizar
+                  <Button onClick={() => refetchMassagistas()} variant="outline" size="sm" className="admin-refresh">
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" /> Atualizar
                   </Button>
                   <Button onClick={handleOpenCreateMassagistaModal}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -444,8 +466,8 @@ export default function Admin() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {massagistas.map((massagista) => (
-                      <Card key={massagista.id} className="overflow-hidden">
-                        <div className="aspect-square relative">
+                      <Card key={massagista.id} className="admin-person-card overflow-hidden">
+                        <div className="admin-person-photo aspect-square relative">
                           {massagista.fotoUrl ? (
                             <img
                               src={massagista.fotoUrl}
@@ -894,7 +916,7 @@ export default function Admin() {
 
         {/* Modal de Criação/Edição de Massagista */}
         <Dialog open={massagistaModalOpen} onOpenChange={setMassagistaModalOpen}>
-          <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogContent className="admin-person-dialog w-[calc(100%-1.25rem)] max-w-2xl max-h-[92dvh] overflow-y-auto p-5 sm:p-7">
             <DialogHeader>
               <DialogTitle>
                 {isEditingMassagista ? "Editar Massagista" : "Nova Massagista"}
@@ -907,8 +929,8 @@ export default function Admin() {
             </DialogHeader>
 
             <form onSubmit={handleMassagistaSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="nome">Nome</Label>
                   <Input
                     id="nome"
@@ -918,7 +940,7 @@ export default function Admin() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="descricao">Descrição</Label>
                   <Textarea
                     id="descricao"
@@ -929,7 +951,7 @@ export default function Admin() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Foto da Massagista</Label>
                   <ImageUpload
                     onUploadingChange={setImageUploading}

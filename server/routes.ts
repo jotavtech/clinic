@@ -132,9 +132,14 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Erro ao fazer upload da imagem:", error);
-      return res.status(500).json({
+      const cloudinaryStatus = (error as any)?.http_code;
+      const permissionDenied = cloudinaryStatus === 403;
+      return res.status(permissionDenied ? 502 : 500).json({
         success: false,
-        message: "Erro ao fazer upload da imagem"
+        code: permissionDenied ? "IMAGE_STORAGE_PERMISSION_DENIED" : "IMAGE_UPLOAD_FAILED",
+        message: permissionDenied
+          ? "O armazenamento de imagens recusou o envio. A chave da Cloudinary precisa da permissão Create."
+          : "Não foi possível enviar a imagem agora. Tente novamente em alguns instantes."
       });
     }
   });

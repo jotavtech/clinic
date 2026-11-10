@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, DragEvent, ChangeEvent } from 'react';
-import { Upload, Image, X, Loader2 } from 'lucide-react';
+import { Image, X, Loader2, ImagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -128,8 +128,8 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className, onUpl
     <div className={`space-y-4 ${className}`}>
       <div
         className={`
-          relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all
-          ${isDragOver ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-gray-400'}
+          image-upload relative cursor-pointer overflow-hidden rounded-2xl border border-dashed p-4 text-center transition-all sm:p-6
+          ${isDragOver ? 'image-upload-active' : ''}
           ${isUploading ? 'pointer-events-none opacity-60' : ''}
         `}
         onDragOver={handleDragOver}
@@ -162,7 +162,7 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className, onUpl
             <img
               src={previewImage}
               alt="Preview"
-              className="max-w-full max-h-48 mx-auto rounded-lg object-cover"
+              className="mx-auto max-h-56 max-w-full rounded-xl object-cover"
             />
             <Button
               type="button"
@@ -179,23 +179,25 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className, onUpl
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col items-center">
-            <Upload className="w-8 h-8 text-gray-400 mb-2" />
-            <p className="text-sm text-gray-600 mb-1">
-              Arraste uma imagem aqui ou clique para selecionar
+          <div className="flex flex-col items-center py-3">
+            <span className="image-upload-icon mb-3 grid h-12 w-12 place-items-center rounded-2xl">
+              <ImagePlus className="h-5 w-5" />
+            </span>
+            <p className="mb-1 text-sm font-medium text-gray-800">
+              Arraste a foto para cá ou <span className="text-primary underline underline-offset-4">escolha um arquivo</span>
             </p>
-            <p className="text-xs text-gray-400">
-              PNG, JPG, JPEG até 10MB
-            </p>
+            <p className="text-xs text-gray-500">JPG, PNG, WebP ou GIF · até 10 MB</p>
           </div>
         )}
       </div>
 
+      {isUploading && <p role="status" className="text-center text-sm text-gray-500">Enviando com segurança…</p>}
+
       {previewImage && (
-        <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-3">
           <div className="flex items-center">
             <Image className="w-4 h-4 text-green-600 mr-2" />
-            <span className="text-sm text-green-700">Imagem carregada com sucesso</span>
+            <span className="text-sm font-medium text-emerald-800">Foto pronta para salvar</span>
           </div>
           <Button
             type="button"
@@ -211,4 +213,4 @@ export function ImageUpload({ onImageUploaded, currentImageUrl, className, onUpl
       )}
     </div>
   );
-} 
+}

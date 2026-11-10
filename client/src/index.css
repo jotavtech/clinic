@@ -246,3 +246,37 @@ section[id] { scroll-margin-top: 6rem; }
  .remaster-footer{padding-block:40px 25px;}.remaster-footer .grid{gap:30px;}.remaster-footer h3{margin-bottom:15px;}.remaster-footer p,.remaster-footer li{font-size:11px;}.footer-admin-link{margin-top:15px;}.remaster-whatsapp{width:47px;height:47px;right:15px;bottom:15px;border-radius:10px;}
  .remaster-admin{padding:23px 15px;}.remaster-admin h1{font-size:23px;}.remaster-admin h1+p{font-size:11px;max-width:220px;}.remaster-admin [role=tab]{font-size:10px;padding:11px 8px;}.remaster-admin [role=tabpanel]>.border>div{padding:19px;}.remaster-admin [role=tabpanel] .flex.gap-2{flex-wrap:wrap;}.remaster-login>.border{padding:5px;}
 }
+
+/* Admin refinements */
+.remaster-admin { background:linear-gradient(180deg,#fff 0,#f7f6f5 250px,#f7f6f5 100%); }
+.admin-hero { position:relative; overflow:hidden; padding:30px 32px; border:1px solid #e8e3e1; border-radius:18px; background:radial-gradient(ellipse at 90% 15%,#f8e4e4 0,transparent 42%),linear-gradient(115deg,#fff 0,#fbf8f7 100%); box-shadow:0 12px 35px #26171208; }
+.admin-hero::after { content:''; position:absolute; width:180px; height:180px; right:10%; bottom:-145px; border:1px solid #df202922; border-radius:50%; box-shadow:0 0 0 22px #df20290a,0 0 0 46px #df202906; pointer-events:none; }
+.admin-hero h1 { position:relative; z-index:1; font-size:clamp(25px,3vw,34px); line-height:1.2; letter-spacing:-1.2px; }
+.admin-hero p { position:relative; z-index:1; font-size:13px; }
+.admin-eyebrow { display:inline-flex; align-items:center; gap:8px; color:#b21d26; font:600 10px 'Montserrat',sans-serif; text-transform:uppercase; letter-spacing:1.4px; }
+.admin-logout { position:relative; z-index:1; border-color:#ded8d6; background:#ffffffc9; }
+.admin-overview-card { position:relative; display:grid; grid-template-columns:auto 1fr; align-items:center; column-gap:13px; min-height:105px; padding:17px 20px; border:1px solid #e9e5e3; border-radius:14px; background:#fff; box-shadow:0 5px 18px #26171206; }
+.admin-overview-icon { grid-row:span 3; display:grid; place-items:center; width:39px; height:39px; border-radius:12px; color:#b91f28; background:#fbefef; }
+.admin-overview-label { color:#74706e; font-size:11px; }
+.admin-overview-card strong { color:#161414; font:600 24px 'Montserrat',sans-serif; line-height:1.1; }
+.admin-overview-note { color:#9b9693; font-size:10px; }
+.admin-tabs { box-shadow:0 4px 16px #20141108; }
+.remaster-admin [role=tabpanel]>.border { background:#fff; box-shadow:0 10px 30px #20141108; }
+.admin-person-card { border-color:#ece7e5; border-radius:14px; background:#fff; box-shadow:0 7px 22px #20141108; transition:transform .2s ease,box-shadow .2s ease; }
+.admin-person-card:hover { transform:translateY(-3px); box-shadow:0 14px 30px #20141112; }
+.admin-person-photo { overflow:hidden; background:linear-gradient(135deg,#f5efed,#ebe4e1); }
+.admin-person-photo img { transition:transform .35s ease; }
+.admin-person-card:hover .admin-person-photo img { transform:scale(1.035); }
+.admin-refresh { border-color:#e5dfdc; background:#fff; }
+.admin-person-dialog { border-radius:18px; box-shadow:0 25px 80px #140b0b35; }
+.image-upload { border-color:#ded8d5; background:linear-gradient(145deg,#fff,#fbf8f7); }
+.image-upload:hover,.image-upload-active { border-color:#c92b33; background:#fff8f8; box-shadow:0 0 0 3px #c92b3310; }
+.image-upload-icon { color:#c32932; background:#fbecee; }
+.remaster-admin :focus-visible { outline:3px solid #d91d2766; outline-offset:2px; }
+@media(max-width:767px){
+ .admin-hero{padding:23px 20px;border-radius:15px;}.admin-hero p{max-width:270px;line-height:1.7;}.admin-logout{width:100%;justify-content:center;}
+ .admin-overview-card{min-height:88px;padding:13px 15px;}.admin-overview-icon{width:35px;height:35px;}.admin-overview-card strong{font-size:21px;}
+ .remaster-admin [role=tablist]{position:sticky;top:8px;z-index:10;box-shadow:0 8px 20px #00000010;}
+ .admin-person-dialog{padding:20px 16px;border-radius:16px;}
+}
+@media(prefers-reduced-motion:reduce){.admin-person-card,.admin-person-photo img{transition:none;}}
