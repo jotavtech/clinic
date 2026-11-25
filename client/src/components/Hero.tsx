@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 export default function Hero() {
   return <section id="inicio" className="clinic-hero">
     <div className="hero-backdrop" aria-hidden="true">
-      <img src="https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1600&q=85" alt="" onError={event=>{event.currentTarget.style.display='none';}}/>
+      <img src="/clinic-hero.png" alt="" />
     </div>
     <div className="container mx-auto px-4 hero-layout">
       <div className="hero-content">

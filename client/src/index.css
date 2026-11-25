@@ -146,8 +146,8 @@ section[id] { scroll-margin-top: 6rem; }
 .section-kicker>span { display:inline-block; width:22px; height:2px; margin-right:10px; background:#df2028; vertical-align:middle; }
 .clinic-hero { position:relative; isolation:isolate; background:#111; color:white; min-height:min(740px,84vh); overflow:hidden; }
 .hero-backdrop { position:absolute; inset:0; z-index:-1; background:radial-gradient(ellipse at 86% 35%,#50171d 0,transparent 50%),#101010; }
-.hero-backdrop img { height:100%; width:100%; object-fit:cover; object-position:center; opacity:.33; }
-.hero-backdrop::after { content:'';position:absolute;inset:0;background:linear-gradient(90deg,#0c0c0cf5 0%,#101010d9 40%,#11111160 100%); }
+.hero-backdrop img { height:100%; width:100%; object-fit:cover; object-position:center 55%; opacity:.78; }
+.hero-backdrop::after { content:'';position:absolute;inset:0;background:linear-gradient(90deg,#0c0c0cf2 0%,#101010d1 42%,#11111135 100%); }
 .hero-layout { min-height:inherit; display:flex; align-items:center; position:relative; padding-block:90px 110px; }
 .hero-content { max-width:780px; }
 .hero-content h1 { font-size:clamp(43px,5vw,72px); font-weight:500; line-height:1.13; letter-spacing:-1.9px; margin-bottom:26px; }

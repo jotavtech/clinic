@@ -143,7 +143,7 @@ export default function Contact() {
     // Formatar a mensagem para o WhatsApp
     const message = `Olá! Gostaria de realizar o pagamento do meu agendamento na Clínica Executivas.`;
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/5583981101444?text=${encodedMessage}`;
+    const whatsappUrl = `https://wa.me/5583982141410?text=${encodedMessage}`;
 
     // Abrir o WhatsApp em uma nova aba
     window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
@@ -540,7 +540,7 @@ export default function Contact() {
             <p className="text-gray-300">
               contato@clinicaexecutivas.com.br
               <br />
-              +55 (83) 98110-1444
+              +55 (83) 98214-1410
             </p>
           </div>
         </motion.div>
